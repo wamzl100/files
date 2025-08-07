@@ -1,0 +1,2423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voxel Pilot 3D Dogfight</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #0ff;
+            font-size: 18px;
+            z-index: 10;
+        }
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            visibility: hidden;
+            z-index: 20;
+        }
+        #overlay h1 {
+            font-size: 48px;
+            color: #0ff;
+        }
+        #overlay button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 20px;
+            border: none;
+            border-radius: 4px;
+            background: #0ff;
+            color: #000;
+            cursor: pointer;
+        }
+
+        /* Start screen styling */
+        #start-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.85));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #ffd700;
+            z-index: 30;
+            pointer-events: auto;
+            text-align: center;
+        }
+        #start-overlay h1 {
+            font-size: 64px;
+            margin-bottom: 10px;
+            font-family: 'Trebuchet MS', 'Arial Black', sans-serif;
+            letter-spacing: 2px;
+            color: #ffd700;
+            text-shadow: 0 0 8px #ffa500, 0 0 16px #ff8c00, 0 0 24px #ff4500;
+        }
+        #start-overlay p {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #ffb600;
+            text-shadow: 0 0 6px #ff4500;
+        }
+        #start-btn {
+            padding: 14px 32px;
+            font-size: 24px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(180deg, #ffd700, #ff8c00);
+            color: #000;
+            cursor: pointer;
+            box-shadow: 0 0 10px #ffd700, 0 0 20px #ff8c00;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px #ffda44, 0 0 30px #ffa500;
+        }
+
+        /* ASCII art styling */
+        #ascii-art {
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            line-height: 1.1;
+            margin-bottom: 10px;
+            color: #ffa500;
+            text-shadow: 0 0 5px rgba(255, 140, 0, 0.8);
+            white-space: pre;
+        }
+
+        /* Controls button styling */
+        #controls-btn {
+            margin-top: 10px;
+            padding: 10px 28px;
+            font-size: 20px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(180deg, #ffa500, #ff4500);
+            color: #000;
+            cursor: pointer;
+            box-shadow: 0 0 8px #ff8c00, 0 0 16px #ff4500;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #controls-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 12px #ffa500, 0 0 24px #ff6347;
+        }
+        /* Simple pyramid icon using CSS borders */
+        .pyramid {
+            width: 0;
+            height: 0;
+            border-left: 50px solid transparent;
+            border-right: 50px solid transparent;
+            /* Use a deep red hue to match the in‑game enemy pyramid */
+            border-bottom: 80px solid #8b0000;
+            margin-bottom: 20px;
+        }
+
+        /* Style for the background image on the start screen */
+        #start-overlay img {
+            max-width: 60%;
+            height: auto;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        /* Tooltip for controls on the start screen */
+        #controls-tooltip {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #ffd700;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 16px;
+            pointer-events: none;
+            visibility: hidden;
+            box-shadow: 0 0 10px #ff8c00;
+            z-index: 31;
+            max-width: 80%;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div id="hud">Score: 0&nbsp;|&nbsp;High: 0</div>
+    <!-- Start overlay shown when the game loads -->
+    <div id="start-overlay">
+        <!-- Annunaki themed artwork to set the mood -->
+        <!-- New Annunaki themed artwork generated specifically for this edition -->
+        <!-- Replace the broken artwork with custom ASCII art and stylised fonts.  The
+             pyramid icon remains for flavour.  A separate controls button is
+             provided so that hovering the main start button does not show the
+             tooltip. -->
+        <pre id="ascii-art">
+    .      .        .   .    .      .
+      *       .         .   *    .   .
+   .     .    .   *   .    .   .     *
+      .       .    .  .    .      .
+    *    .    *      .     .    *   .
+        </pre>
+        <div class="pyramid"></div>
+        <h1>AN ADVERSARY IN DEEP SPACE</h1>
+        <p>made by Majundar, and the machine</p>
+        <button id="start-btn">Start Game</button>
+        <button id="controls-btn">Controls</button>
+        <!-- Tooltip that shows the controls when hovering over the controls button -->
+        <div id="controls-tooltip">Controls:<br>
+            Move: W/A/S/D or arrow keys<br>
+            Accelerate: Shift or Space<br>
+            Fire: Enter or X<br>
+            Collect rings for bonus points<br>
+            Avoid enemy and dragon!</div>
+    </div>
+    <!-- Game over overlay -->
+    <div id="overlay">
+        <h1 id="gameover-title">Game Over</h1>
+        <p id="final-score"></p>
+        <button id="restart-btn">Restart</button>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.min.js"></script>
+    <script>
+    (() => {
+        const hud = document.getElementById('hud');
+        const overlay = document.getElementById('overlay');
+        const startOverlay = document.getElementById('start-overlay');
+        const startBtn = document.getElementById('start-btn');
+        const gameoverTitle = document.getElementById('gameover-title');
+        const finalScore = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+        let score = 0;
+        let highScore = 0;
+        let running = false;
+
+        // Additional game objects and state
+        // References to star clouds so we can rotate the inner and outer halos independently
+        let outerCloud;
+        let innerStars;
+        // Dragon adversary and its trail data.  The dragon is a free‑for‑all combatant
+        // that chases both the player and the enemy.
+        const dragon = new THREE.Group();
+        let dragonTrailPoints = [];
+        let dragonTrailSegments = [];
+
+        // Second dragon adversary and its trail data.  This dragon is longer and
+        // provides additional challenge.  Like the first dragon, it chases the
+        // nearest target (player or enemy) and can collide with either.
+        const dragon2 = new THREE.Group();
+        let dragon2TrailPoints = [];
+        let dragon2TrailSegments = [];
+
+        // Procedurally generated scale texture for both dragons.  Creating it
+        // once here allows the same texture to be reused across all dragon
+        // segments and heads, giving a cohesive reptilian look without
+        // regenerating the pattern each time a dragon is created.
+        const dragonScaleTex = generateDragonScaleTexture();
+
+        // Collections of wings for animation.  Player and dragons have flapping
+        // wings which are updated in the animation loop.  Each wing stores
+        // whether it is the left or right wing via an `isLeft` property.
+        const playerWings = [];
+        const dragonWings = [];
+
+        // Start button: hide the start screen and begin the game
+        startBtn.addEventListener('click', () => {
+            // Hide the start screen completely and begin the game.  Use display
+            // instead of visibility so the overlay no longer intercepts mouse
+            // events after starting.
+            startOverlay.style.display = 'none';
+            running = true;
+            reset();
+        });
+
+        // Show a tooltip with controls when hovering over the dedicated controls button
+        const controlsTooltip = document.getElementById('controls-tooltip');
+        const controlsBtnEl = document.getElementById('controls-btn');
+        if (controlsBtnEl) {
+            controlsBtnEl.addEventListener('mouseenter', () => {
+                controlsTooltip.style.visibility = 'visible';
+            });
+            controlsBtnEl.addEventListener('mouseleave', () => {
+                controlsTooltip.style.visibility = 'hidden';
+            });
+        }
+
+        // Also allow clicking anywhere on the start overlay to begin the game.  This
+        // improves reliability across browsers and ensures the start overlay does
+        // not linger if the button fails to capture the event.
+        startOverlay.addEventListener('click', () => {
+            if (startOverlay.style.display !== 'none') {
+                startOverlay.style.display = 'none';
+                running = true;
+                reset();
+            }
+        });
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        // Revert to a plain dark backdrop instead of the generated skybox.  A
+        // simple blackish background helps accentuate the new grid and temple
+        // structures and keeps the focus on the planets and decor.  If you
+        // wish to customise the hue further, adjust the hex value below.
+        scene.background = new THREE.Color(0x000000);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({antialias: true});
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambient = new THREE.AmbientLight(0x555555);
+        scene.add(ambient);
+        const light = new THREE.PointLight(0xffffff, 1, 0);
+        light.position.set(0, 50, 50);
+        scene.add(light);
+
+        // Starfield with a warm Egyptian vibe
+        const starGeometry = new THREE.BufferGeometry();
+        // Reduce the number of static background stars by half to make deep space feel more open
+        const starCount = 1000;
+        const starPositions = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+            starPositions[i * 3] = (Math.random() - 0.5) * 500;
+            starPositions[i * 3 + 1] = (Math.random() - 0.5) * 500;
+            starPositions[i * 3 + 2] = (Math.random() - 0.5) * 500;
+        }
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        // Use a golden hue for stars
+        const starMaterial = new THREE.PointsMaterial({color: 0xc4a000, size: 0.8});
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        // Removed static stars to allow focus on nebulae and rings
+        // scene.add(stars);
+
+        // Add pyramids to give an ancient Egyptian vibe
+        const pyramidGroup = new THREE.Group();
+        for (let i = 0; i < 5; i++) {
+            // Larger and brighter pyramids
+            const base = 15 + Math.random() * 10;
+            const height = 18 + Math.random() * 10;
+            const pyramidGeo = new THREE.ConeGeometry(base, height, 4);
+            const colorOptions = [0xffd700, 0xffa500, 0xda70d6, 0x40e0d0, 0xadff2f];
+            const pyramidMat = new THREE.MeshLambertMaterial({color: colorOptions[Math.floor(Math.random() * colorOptions.length)]});
+            const pyramid = new THREE.Mesh(pyramidGeo, pyramidMat);
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 100 + Math.random() * 80;
+            pyramid.position.set(Math.cos(angle) * radius, -15 - Math.random() * 10, Math.sin(angle) * radius);
+            pyramid.rotation.y = Math.random() * Math.PI;
+            pyramidGroup.add(pyramid);
+        }
+        // Removed adding pyramids to the scene to focus on cosmic ambience
+        // scene.add(pyramidGroup);
+
+
+        // Floating temples, obelisks, and eyes for ambience
+        const decorGroup = new THREE.Group();
+        // Create temples (simple box structures)
+        for (let i = 0; i < 3; i++) {
+            const temple = new THREE.Group();
+            // columns (larger and colorful)
+            for (let j = 0; j < 4; j++) {
+                const colGeo = new THREE.CylinderGeometry(1.0, 1.0, 10, 10);
+                const colColors = [0xff7f50, 0x9370db, 0x00fa9a, 0xff69b4, 0x87ceeb];
+                const colMat = new THREE.MeshLambertMaterial({color: colColors[Math.floor(Math.random() * colColors.length)]});
+                const col = new THREE.Mesh(colGeo, colMat);
+                col.position.set((j % 2 === 0 ? -1 : 1) * 4, 5, (j < 2 ? -1 : 1) * 4);
+                temple.add(col);
+            }
+            // roof (larger and vibrant)
+            const roofGeo = new THREE.BoxGeometry(12, 2, 12);
+            const roofColors = [0xffd700, 0xff8c00, 0x8a2be2, 0x00ced1, 0xff1493];
+            const roofMat = new THREE.MeshLambertMaterial({color: roofColors[Math.floor(Math.random() * roofColors.length)]});
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+            roof.position.set(0, 11, 0);
+            temple.add(roof);
+            // Scale temple uniformly to make it grand
+            const tScale = 1.5 + Math.random();
+            temple.scale.set(tScale, tScale, tScale);
+            // position temple in space
+            const tAngle = Math.random() * Math.PI * 2;
+            const tRadius = 120 + Math.random() * 80;
+            temple.position.set(Math.cos(tAngle) * tRadius, Math.random() * 30 - 15, Math.sin(tAngle) * tRadius);
+            temple.rotation.y = Math.random() * Math.PI * 2;
+            decorGroup.add(temple);
+        }
+        // Create obelisks
+        for (let i = 0; i < 5; i++) {
+            const height = 30 + Math.random() * 20;
+            const obeliskGeo = new THREE.BoxGeometry(2, height, 2);
+            const obColors = [0xfa8072, 0x00bfff, 0xba55d3, 0x32cd32, 0xffd700];
+            const obeliskMat = new THREE.MeshLambertMaterial({color: obColors[Math.floor(Math.random() * obColors.length)]});
+            const obelisk = new THREE.Mesh(obeliskGeo, obeliskMat);
+            const oAngle = Math.random() * Math.PI * 2;
+            const oRadius = 140 + Math.random() * 60;
+            obelisk.position.set(Math.cos(oAngle) * oRadius, height / 2, Math.sin(oAngle) * oRadius);
+            decorGroup.add(obelisk);
+        }
+        // Create floating eyes
+        for (let i = 0; i < 3; i++) {
+            const eyeTex = generateEyeballTexture();
+            const eyeGeo = new THREE.SphereGeometry(2, 32, 32);
+            const eyeMat = new THREE.MeshLambertMaterial({map: eyeTex});
+            const eye = new THREE.Mesh(eyeGeo, eyeMat);
+            const angle2 = Math.random() * Math.PI * 2;
+            const radius2 = 80 + Math.random() * 40;
+            eye.position.set(Math.cos(angle2) * radius2, Math.random() * 30 - 15, Math.sin(angle2) * radius2);
+            eye.rotation.y = Math.random() * Math.PI * 2;
+            decorGroup.add(eye);
+        }
+        // Removed adding temples/obelisks/eyes to the scene to declutter
+        // scene.add(decorGroup);
+
+        // Color bloom groups, Ort cloud and planets
+        const colorBloomGroup = new THREE.Group();
+        scene.add(colorBloomGroup);
+        const ortCloudGroup = new THREE.Group();
+        scene.add(ortCloudGroup);
+        const planetsGroup = new THREE.Group();
+        scene.add(planetsGroup);
+
+        // Gold rings for the player to fly through to earn extra points
+        const ringsGroup = new THREE.Group();
+        scene.add(ringsGroup);
+        const rings = [];
+        // Timer controlling temporary speed boost awarded for completing ring combos
+        let speedBoostTimer = 0;
+
+        // Rainbow pops spawned when a ring is collected
+        const pops = [];
+
+        function createPop(position) {
+            const count = 100;
+            const positions = new Float32Array(count * 3);
+            const velocities = [];
+            const colors = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                positions[i * 3] = position.x;
+                positions[i * 3 + 1] = position.y;
+                positions[i * 3 + 2] = position.z;
+                // random velocities for explosion
+                const v = new THREE.Vector3((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4);
+                velocities.push(v);
+                const col = new THREE.Color().setHSL(Math.random(), 0.9, 0.6);
+                colors[i * 3] = col.r;
+                colors[i * 3 + 1] = col.g;
+                colors[i * 3 + 2] = col.b;
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.6, vertexColors: true, transparent: true, opacity: 1.0 });
+            const pts = new THREE.Points(geo, mat);
+            pops.push({ mesh: pts, velocities: velocities, life: 60, positions: positions, geometry: geo, material: mat });
+            scene.add(pts);
+        }
+
+        // Create a dramatic explosion effect at the given position.  This is
+        // similar to createPop but spawns many more particles with higher
+        // velocities and a warm colour palette.  Used when the enemy or
+        // dragon is destroyed.
+        function createExplosion(position) {
+            const count = 200;
+            const positions = new Float32Array(count * 3);
+            const velocities = [];
+            const colors = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                positions[i * 3] = position.x;
+                positions[i * 3 + 1] = position.y;
+                positions[i * 3 + 2] = position.z;
+                // Higher velocities for a dramatic blast
+                const v = new THREE.Vector3((Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2);
+                velocities.push(v);
+                // Colours from orange to yellow to white
+                const hue = 0.05 + Math.random() * 0.05; // narrow red/orange band
+                const col = new THREE.Color().setHSL(hue, 0.9, 0.6 + Math.random() * 0.2);
+                colors[i * 3] = col.r;
+                colors[i * 3 + 1] = col.g;
+                colors[i * 3 + 2] = col.b;
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.9, vertexColors: true, transparent: true, opacity: 1.0 });
+            const pts = new THREE.Points(geo, mat);
+            pops.push({ mesh: pts, velocities: velocities, life: 80, positions: positions, geometry: geo, material: mat });
+            scene.add(pts);
+        }
+
+        // Create a larger pop for collecting rings.  Increases particle count and
+        // velocity compared to the standard pop to make ring collection feel
+        // more rewarding.
+        function createRingSpark(position) {
+            const count = 300;
+            const positions = new Float32Array(count * 3);
+            const velocities = [];
+            const colors = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                positions[i * 3] = position.x;
+                positions[i * 3 + 1] = position.y;
+                positions[i * 3 + 2] = position.z;
+                const v = new THREE.Vector3((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8);
+                velocities.push(v);
+                const col = new THREE.Color().setHSL(Math.random(), 0.9, 0.6);
+                colors[i * 3] = col.r;
+                colors[i * 3 + 1] = col.g;
+                colors[i * 3 + 2] = col.b;
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.7, vertexColors: true, transparent: true, opacity: 1.0 });
+            const pts = new THREE.Points(geo, mat);
+            pops.push({ mesh: pts, velocities: velocities, life: 70, positions: positions, geometry: geo, material: mat });
+            scene.add(pts);
+        }
+
+        // Generate a faint cubic grid to aid pilot orientation
+        function createCubicGrid(size, divisions) {
+            // Build a cubic grid using cylinders instead of line segments so that
+            // thickness can vary with distance from the origin.  Lines further
+            // from the centre become thicker, helping pilots orient themselves
+            // as they fly deeper into space.
+            const grid = new THREE.Group();
+            const half = size / 2;
+            const step = size / divisions;
+            const maxDist = half;
+            // Helper to create a cylindrical line between two points with radius
+            // proportional to the midpoint distance from the origin.
+            function addLine(start, end) {
+                const dir = new THREE.Vector3().subVectors(end, start);
+                const length = dir.length();
+                if (length < 0.01) return;
+                const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+                const dist = mid.length();
+                // Base radius grows from 0.05 near the origin to 10 units at the outer rim.
+                // Doubling the factor ensures the grid becomes twice as thick by the time
+                // pilots reach the outermost edges (8 000 units), providing a clear
+                // visual gradient from thin lines near the centre to thick beams far away.
+                const radius = 0.05 + (dist / maxDist) * 10.0;
+                const cylGeo = new THREE.CylinderGeometry(radius, radius, length, 6);
+                const cylMat = new THREE.MeshBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.3 });
+                const cyl = new THREE.Mesh(cylGeo, cylMat);
+                cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+                cyl.position.copy(mid);
+                grid.add(cyl);
+            }
+            // For each slice along the grid, create horizontal and vertical lines
+            for (let i = 0; i <= divisions; i++) {
+                const pos = -half + i * step;
+                for (let j = 0; j <= divisions; j++) {
+                    const other = -half + j * step;
+                    // Lines parallel to X axis (constant y = pos, z = other)
+                    addLine(new THREE.Vector3(-half, pos, other), new THREE.Vector3(half, pos, other));
+                    // Lines parallel to Z axis (constant y = pos, x = other)
+                    addLine(new THREE.Vector3(other, pos, -half), new THREE.Vector3(other, pos, half));
+                    // Vertical lines along Y axis (constant x = pos, z = other)
+                    addLine(new THREE.Vector3(pos, -half, other), new THREE.Vector3(pos, half, other));
+                }
+            }
+            return grid;
+        }
+
+        // Create and add the cubic grid.  Use a much larger grid size so that
+        // pilots see the grid lines stretching deep into space.  The thickness
+        // of each line increases with distance from the origin.
+        // Create a much larger cubic grid so lines extend into the deep outer
+        // reaches of the star field.  Use a size of 8000 units with the same
+        // number of divisions.  This ensures the grid envelopes the expanded
+        // solar system and provides guidance far from the origin.
+        const gridSize = 8000;
+        // Increase the number of divisions by a factor of two to make the grid
+        // twice as fine.  A denser grid halves the spacing between lines,
+        // revealing more cubic intersections per unit and providing greater
+        // spatial orientation for the pilot.
+        const gridDivisions = 16;
+        const gridHelper = createCubicGrid(gridSize, gridDivisions);
+        scene.add(gridHelper);
+        // After building the grid, spawn temples along the outer grid intersections
+        // using the new division count.
+        spawnGridTemples(gridHelper, gridSize, gridDivisions);
+        // Populate the cubic planes with heaven‑like cities and architecture.  These
+        // cities sit atop the grid planes and are scaled based on their
+        // distance from the centre.  See spawnHeavenCities() for details.
+        spawnHeavenCities(gridSize, gridDivisions);
+
+        // Border decorations: roman pillars, temples, and eyes marking the playable area
+        const borderGroup = new THREE.Group();
+        function createBorderDecor(position) {
+            const decor = new THREE.Group();
+            // Roman pillars
+            for (let i = 0; i < 4; i++) {
+                // Dramatically elongate and thicken the pillars to demarcate the far reaches
+                // of the playable space.  Pillars are 20× taller and 3× thicker than
+                // previous versions, making them towering beacons in deep space.
+                const pillarHeight = 120 * 20;
+                const pillarRadius = 1.5 * 3;
+                const pillarGeo = new THREE.CylinderGeometry(pillarRadius, pillarRadius, pillarHeight, 12);
+                const pillarMat = new THREE.MeshLambertMaterial({ color: 0xc0c0c0 });
+                const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+                const offsetX = (i % 2 === 0 ? -1 : 1) * 4;
+                const offsetZ = (i < 2 ? -1 : 1) * 4;
+                pillar.position.set(position.x + offsetX, position.y + pillarHeight / 2, position.z + offsetZ);
+                decor.add(pillar);
+            }
+            // Simple temple (base and roof)
+            {
+                const baseGeo = new THREE.BoxGeometry(10, 2, 10);
+                const baseMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+                const base = new THREE.Mesh(baseGeo, baseMat);
+                base.position.set(position.x, position.y + 1, position.z);
+                decor.add(base);
+                const roofGeo = new THREE.BoxGeometry(12, 2, 12);
+                const roofMat = new THREE.MeshLambertMaterial({ color: 0xcd853f });
+                const roof = new THREE.Mesh(roofGeo, roofMat);
+                roof.position.set(position.x, position.y + 15, position.z);
+                decor.add(roof);
+            }
+            // Floating eye above the temple
+            {
+                const eyeTex = generateEyeballTexture();
+                const eyeGeo = new THREE.SphereGeometry(3, 32, 32);
+                const eyeMat = new THREE.MeshLambertMaterial({ map: eyeTex, emissive: new THREE.Color(0x663399), emissiveIntensity: 0.4 });
+                const eye = new THREE.Mesh(eyeGeo, eyeMat);
+                eye.position.set(position.x, position.y + 25, position.z);
+                decor.add(eye);
+            }
+            return decor;
+        }
+
+        // Spawn additional temples along the cubic grid lines.  Given the grid
+        // size and division count, this function iterates over grid
+        // intersections and places decorative temples at positions near the
+        // outer region of space.  The temples are scaled up to emphasise
+        // their presence at the far reaches of the environment.
+        function spawnGridTemples(grid, size, divisions) {
+            // Populate grid intersections with temples that begin near the centre and
+            // gradually increase in density and scale toward the edges.  Density
+            // ramps linearly from 10% near the origin to 20% at the outer grid.
+            const half = size / 2;
+            const step = size / divisions;
+            const maxDist = Math.sqrt(2) * half;
+            for (let i = 0; i <= divisions; i++) {
+                const x = -half + i * step;
+                for (let j = 0; j <= divisions; j++) {
+                    const z = -half + j * step;
+                    const dist = Math.sqrt(x * x + z * z);
+                    // Increase spawn probability and scale to emphasise large
+                    // temple structures along the grid.  Temples are more
+                    // numerous toward the edges of the playable space and
+                    // substantially larger than before.  Probability ramps
+                    // from ~15% near the centre to ~30% at the outer rim.
+                    const minDensity = 0.15;
+                    const maxDensity = 0.30;
+                    const density = minDensity + (dist / maxDist) * (maxDensity - minDensity);
+                    if (Math.random() < density) {
+                        const p = new THREE.Vector3(x, 0, z);
+                        const decor = createBorderDecor(p);
+                        // Scale temples from roughly 3× near centre to 7× at
+                        // the outer rim.  This creates imposing monuments
+                        // across the grid planes reminiscent of grand
+                        // celestial temples.
+                        const minScale = 3;
+                        const maxScale = 7;
+                        const scale = minScale + (dist / maxDist) * (maxScale - minScale);
+                        decor.scale.set(scale, scale, scale);
+                        scene.add(decor);
+                    }
+                }
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Heaven‑like cities
+        //
+        // To further embellish the world, we generate grand cities along the
+        // planes defined by the cubic grid.  Each city consists of a base
+        // platform, a central dome and four towers.  Colours are kept
+        // light and warm to evoke a heavenly aesthetic.  The spawnHeavenCities
+        // function iterates over grid intersections and randomly places a
+        // city with probability proportional to distance from the centre.
+        // Cities scale up as they approach the outer rim, mirroring the
+        // grandeur of the temples spawned along the grid itself.
+        function createHeavenCity(position) {
+            const city = new THREE.Group();
+            // Base platform
+            const baseGeo = new THREE.BoxGeometry(40, 2, 40);
+            const baseMat = new THREE.MeshLambertMaterial({
+                color: 0xffffff,
+                emissive: new THREE.Color(0xffffff),
+                emissiveIntensity: 0.6
+            });
+            const base = new THREE.Mesh(baseGeo, baseMat);
+            base.position.set(position.x, position.y, position.z);
+            city.add(base);
+            // Central dome
+            const domeGeo = new THREE.SphereGeometry(8, 32, 32);
+            const domeMat = new THREE.MeshLambertMaterial({
+                color: 0xfff8dc,
+                emissive: new THREE.Color(0xfff8dc),
+                emissiveIntensity: 0.5
+            });
+            const dome = new THREE.Mesh(domeGeo, domeMat);
+            dome.position.set(position.x, position.y + 7, position.z);
+            city.add(dome);
+            // Four towers
+            const towerGeo = new THREE.CylinderGeometry(2, 2, 20, 12);
+            const towerMat = new THREE.MeshLambertMaterial({
+                color: 0xe6e6fa,
+                emissive: new THREE.Color(0xe6e6fa),
+                emissiveIntensity: 0.5
+            });
+            const offsets = [
+                { x: -15, z: -15 },
+                { x: 15, z: -15 },
+                { x: -15, z: 15 },
+                { x: 15, z: 15 }
+            ];
+            offsets.forEach(off => {
+                const twr = new THREE.Mesh(towerGeo, towerMat);
+                twr.position.set(position.x + off.x, position.y + 10, position.z + off.z);
+                city.add(twr);
+            });
+            return city;
+        }
+
+        function spawnHeavenCities(size, divisions) {
+            const half = size / 2;
+            const step = size / divisions;
+            const maxDist = Math.sqrt(2) * half;
+            for (let i = 0; i <= divisions; i++) {
+                const x = -half + i * step;
+                for (let j = 0; j <= divisions; j++) {
+                    const z = -half + j * step;
+                    const dist = Math.sqrt(x * x + z * z);
+                    // Probability increases from ~5% near the centre to ~15% at the rim
+                    const density = 0.05 + (dist / maxDist) * 0.1;
+                    if (Math.random() < density) {
+                        const pos = new THREE.Vector3(x, 0, z);
+                        const city = createHeavenCity(pos);
+                        // Scale based on distance: 1.5× near centre, 4.5× at edge
+                        const scale = 1.5 + (dist / maxDist) * 3.0;
+                        city.scale.set(scale, scale, scale);
+                        scene.add(city);
+                    }
+                }
+            }
+        }
+        {
+            // Position the border decorations much farther out to align with the
+            // expanded star field.  Corners and midpoints are set around ±6000 units.
+            const borderPositions = [
+                new THREE.Vector3(6000, 0, 6000),
+                new THREE.Vector3(-6000, 0, 6000),
+                new THREE.Vector3(6000, 0, -6000),
+                new THREE.Vector3(-6000, 0, -6000),
+                new THREE.Vector3(6000, 0, 0),
+                new THREE.Vector3(-6000, 0, 0),
+                new THREE.Vector3(0, 0, 6000),
+                new THREE.Vector3(0, 0, -6000)
+            ];
+            borderPositions.forEach((pos) => {
+                const d = createBorderDecor(pos);
+                borderGroup.add(d);
+            });
+        }
+        scene.add(borderGroup);
+
+        // Function to spawn a new ring at a random location
+        function spawnRing() {
+            let pos;
+            let attempts = 0;
+            do {
+                // Choose a random spherical position far from the origin.  Rings now
+                // appear in deep space between 400 and 800 units from the centre.
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                const radius = 400 + Math.random() * 400;
+                const x = Math.sin(phi) * Math.cos(theta) * radius;
+                const y = Math.sin(phi) * Math.sin(theta) * radius;
+                const z = Math.cos(phi) * radius;
+                pos = new THREE.Vector3(x, y, z);
+                attempts++;
+                // avoid spawning too close to player start (within 80 units)
+            } while (pos.distanceTo(player.position) < 80 && attempts < 5);
+            // Build a larger ring for outer space
+            const ringGeo = new THREE.TorusGeometry(8, 1.2, 16, 32);
+            const ringMat = new THREE.MeshLambertMaterial({ color: 0xffd700, emissive: new THREE.Color(0xffd700), emissiveIntensity: 0.8 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.copy(pos);
+            ring.rotation.x = Math.random() * Math.PI;
+            ring.rotation.y = Math.random() * Math.PI;
+            ring.userData.isCombo = false;
+            ringsGroup.add(ring);
+            rings.push(ring);
+        }
+
+        // Spawn a sequence of rings aligned along a random direction.  Combo rings
+        // appear in deeper space (600–1000 units) and grant a temporary speed
+        // boost when collected.  Each ring in the combo is tagged via
+        // userData.isCombo so updateRings can trigger the boost.  The rings
+        // are spaced roughly 15 units apart along the chosen axis.
+        function spawnRingCombo() {
+            // Choose a random centre point in deep space
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const baseRadius = 600 + Math.random() * 400;
+            const basePos = new THREE.Vector3(
+                Math.sin(phi) * Math.cos(theta) * baseRadius,
+                Math.sin(phi) * Math.sin(theta) * baseRadius,
+                Math.cos(phi) * baseRadius
+            );
+            // Choose a random direction vector for the combo alignment
+            let dir;
+            // Ensure the direction is not zero length
+            do {
+                dir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
+            } while (dir.length() < 0.1);
+            dir.normalize();
+            // Spawn three rings along this direction
+            for (let i = -1; i <= 1; i++) {
+                const offset = dir.clone().multiplyScalar(i * 15);
+                const pos = basePos.clone().add(offset);
+                const ringGeo = new THREE.TorusGeometry(8, 1.4, 16, 32);
+                // Use a slightly different colour for combo rings
+                const ringMat = new THREE.MeshLambertMaterial({ color: 0xdd00ff, emissive: new THREE.Color(0xdd00ff), emissiveIntensity: 1.0 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.position.copy(pos);
+                ring.rotation.x = Math.random() * Math.PI;
+                ring.rotation.y = Math.random() * Math.PI;
+                ring.userData.isCombo = true;
+                ringsGroup.add(ring);
+                rings.push(ring);
+            }
+        }
+
+        // Rings will be spawned during reset() after the player is created
+
+        // ---------------------------------------------------------------------------
+        // Flying saucers
+        //
+        // Add small flying saucers that periodically descend toward planets and can
+        // be shot by the player.  Each saucer is roughly one third the size of
+        // the main pyramid enemy and consists of a metallic hull with a glassy
+        // dome.  Saucers spawn at random locations far from the origin, fly
+        // toward a randomly chosen planet, and explode on impact or when shot.
+
+        const saucers = [];
+        let saucerSpawnTimer = 0;
+
+        function createSaucer(target) {
+            const saucer = new THREE.Group();
+            // Double saucer size to make aliens twice as big
+            saucer.scale.set(2, 2, 2);
+            // Hull: flattened cylinder
+            const hullGeo = new THREE.CylinderGeometry(4.5, 4.5, 1.2, 32);
+            const hullMat = new THREE.MeshLambertMaterial({ color: 0x999999, emissive: new THREE.Color(0x222222), emissiveIntensity: 0.5 });
+            const hull = new THREE.Mesh(hullGeo, hullMat);
+            saucer.add(hull);
+            // Dome: small sphere on top of hull
+            const domeGeo = new THREE.SphereGeometry(2.0, 16, 16);
+            const domeMat = new THREE.MeshLambertMaterial({ color: 0x77ddff, emissive: new THREE.Color(0x003355), emissiveIntensity: 0.5, transparent: true, opacity: 0.8 });
+            const dome = new THREE.Mesh(domeGeo, domeMat);
+            dome.position.y = 1.0;
+            saucer.add(dome);
+            // Data: assign target and velocity
+            saucer.target = target;
+            saucer.velocity = new THREE.Vector3();
+            return saucer;
+        }
+
+        function spawnSaucer() {
+            if (planetsGroup.children.length === 0) return;
+            // Choose a random planet as the landing target
+            const index = Math.floor(Math.random() * planetsGroup.children.length);
+            const target = planetsGroup.children[index];
+            const saucer = createSaucer(target);
+            // Spawn far from the origin at a random spherical location 600–800 units away
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 600 + Math.random() * 200;
+            const height = (Math.random() - 0.5) * 50;
+            saucer.position.set(Math.cos(angle) * radius, height, Math.sin(angle) * radius);
+            // Compute velocity toward the target
+            const toTarget = target.position.clone().sub(saucer.position).normalize();
+            saucer.velocity.copy(toTarget.multiplyScalar(0.5));
+            saucers.push(saucer);
+            scene.add(saucer);
+        }
+
+        function updateSaucers() {
+            // Spawn new saucers periodically based on a countdown timer
+            if (--saucerSpawnTimer <= 0) {
+                // Increase the maximum number of flying saucers and spawn them
+                // more frequently.  More saucers enrich the skies and
+                // complement the heavenly architecture.  Allow up to eight
+                // concurrent saucers.
+                if (saucers.length < 8) {
+                    spawnSaucer();
+                }
+                // Reset spawn timer to a shorter random interval (10–15 seconds
+                // at 60fps) to increase spawn frequency compared to the
+                // original 20–40 seconds.
+                saucerSpawnTimer = 600 + Math.random() * 300;
+            }
+            for (let i = saucers.length - 1; i >= 0; i--) {
+                const s = saucers[i];
+                // Move saucer toward target
+                s.position.add(s.velocity);
+                // Landed or collided with target
+                if (s.target && s.position.distanceTo(s.target.position) < (s.target.children[0]?.geometry?.parameters?.radius || 5) + 2) {
+                    // Create explosion on landing and remove saucer
+                    createExplosion(s.position.clone());
+                    scene.remove(s);
+                    saucers.splice(i, 1);
+                    continue;
+                }
+                // Remove saucers that wander too far away
+                if (s.position.length() > 8000) {
+                    scene.remove(s);
+                    saucers.splice(i, 1);
+                }
+            }
+        }
+
+        // Update rings: check if player flies through and award points
+        function updateRings() {
+            for (let i = rings.length - 1; i >= 0; i--) {
+                const ring = rings[i];
+                // approximate ring hitbox: if player is within radius equal to the ring's inner radius
+                if (ring.position.distanceTo(player.position) < 8) {
+                    // collected ring: remove and spawn new one or combo
+                    ringsGroup.remove(ring);
+                    rings.splice(i, 1);
+                    createRingSpark(ring.position.clone());
+                    // If this ring is part of a combo, grant a temporary speed boost
+                    if (ring.userData && ring.userData.isCombo) {
+                        speedBoostTimer = 200; // about 3 seconds at 60 fps
+                    }
+                    // Spawn a new ring at random; occasionally spawn a new combo instead
+                    if (Math.random() < 0.2) {
+                        spawnRingCombo();
+                    } else {
+                        spawnRing();
+                    }
+                    // Award points
+                    score += 10;
+                }
+            }
+        }
+
+        // Populate color blooms at various positions to create vibrant shifting clusters
+        {
+            // Position nebulas near the centre and further out.  Inner blooms are more
+            // densely populated and spin a little faster; outer blooms are sparser and
+            // orbit more slowly.  All blooms have random tilt so their orbits lie on
+            // different planes.
+            const innerPositions = [
+                new THREE.Vector3(15, 8, -15),
+                new THREE.Vector3(-18, -6, 18),
+                new THREE.Vector3(12, 10, 12),
+                new THREE.Vector3(-12, -9, -12)
+            ];
+            innerPositions.forEach((pos) => {
+                const scale = (1 + Math.random() * 2) * 60 * 3;
+                // Inner blooms spin faster, are denser and have longer tails to emphasise
+                // dramatic motion near the sun.
+                const bloom = createColorBloom(pos, scale, { speedScalar: 1.2, denseFactor: 1.5, tailFactor: 1.5 });
+                bloom.scale.set(scale, scale, scale);
+                colorBloomGroup.add(bloom);
+            });
+            const outerPositions = [
+                new THREE.Vector3(30, 15, -30),
+                new THREE.Vector3(-35, -10, 30),
+                new THREE.Vector3(25, 18, 25),
+                new THREE.Vector3(-25, -15, -25)
+            ];
+            outerPositions.forEach((pos) => {
+                const scale = (1 + Math.random() * 2) * 60 * 3;
+                // Outer blooms are more sparse, spin more slowly and have shorter tails.  Further
+                // reduce the tail length to make the comet trails less pronounced at the edge
+                // of the map.
+                const bloom = createColorBloom(pos, scale, { speedScalar: 0.5, denseFactor: 0.7, tailFactor: 0.3 });
+                bloom.scale.set(scale, scale, scale);
+                colorBloomGroup.add(bloom);
+            });
+        }
+        // Create and add the Ort cloud
+        {
+            // Add outer and inner star clouds.  The outer halo is sparse and extends
+            // from 200 to 400 units, while the inner halo is denser and occupies
+            // 50–150 units around the sun.  We store references to these clouds
+            // so that they can be rotated independently in the animation loop.
+            outerCloud = createOrtCloud();
+            innerStars = createInnerStarCloud();
+            ortCloudGroup.add(outerCloud);
+            ortCloudGroup.add(innerStars);
+        }
+        // Create large, colourful planets and add to group
+        {
+            // Build a miniature solar system with nine planets.  Each planet has an
+            // orbital radius and speed inspired by our solar system (scaled for
+            // gameplay), a unique size and colour, and optional rings/moons.  We
+            // assign orbit parameters via userData so the animate() loop can update
+            // their positions around the sun.
+            const planetDefs = [
+  // name      orbitRadius  radius  colour     ring  moons speed   incl
+  { name: 'Mercury',  orbitRadius: 240,  radius: 3,   color: 0xd3d3d3, ring: false, moons: 0, speed: 0.2,   incl: 7 },
+  { name: 'Venus',    orbitRadius: 360,  radius: 7,   color: 0xffa500, ring: false, moons: 0, speed: 0.15,  incl: 3.39 },
+  { name: 'Earth',    orbitRadius: 480,  radius: 7,   color: 0x0066ff, ring: false, moons: 1, speed: 0.1,   incl: 0 },
+  { name: 'Mars',     orbitRadius: 600,  radius: 6,   color: 0xff4500, ring: false, moons: 2, speed: 0.08,  incl: 1.85 },
+  { name: 'Jupiter',  orbitRadius: 840,  radius: 20,  color: 0xffd700, ring: false, moons: 4, speed: 0.06,  incl: 1.31 },
+  { name: 'Saturn',   orbitRadius: 999,  radius: 18,  color: 0xdeb887, ring: true,  moons: 3, speed: 0.04,  incl: 2.49 },
+  { name: 'Uranus',   orbitRadius: 999,  radius: 14,  color: 0x40e0d0, ring: true,  moons: 2, speed: 0.03,  incl: 0.77 },
+  { name: 'Neptune',  orbitRadius: 720,  radius: 14,  color: 0x0000ff, ring: false, moons: 2, speed: 0.02,  incl: 1.77 },
+  { name: 'Pluto',    orbitRadius: 825,  radius: 5,   color: 0xdda0dd, ring: false, moons: 1, speed: 0.01,  incl: 17.16 }
+ ];
+            // Scale factor applied to planetary orbits.  The original scale of
+            // 5.0 was previously reduced by one third (×2/3).  We further
+            // multiply by a proximity factor to bring all planets much closer
+            // to the sun.  Lower values mean the planets cluster tightly
+            // around the centre.  A value around 0.3 yields a compact
+            // miniature solar system that still keeps planetary spheres
+            // separated from each other.
+            const planetProximity = 0.3;
+            const orbitScale = 5 * (2 / 3) * planetProximity;
+            planetDefs.forEach(def => {
+                const initialRadius = def.orbitRadius * orbitScale - 30;
+                const inclination = (def.incl || 0) * Math.PI / 180;
+                // Draw a visible orbital ribbon for this planet
+                const orbitHaloGeom = new THREE.TorusGeometry(initialRadius, 3, 16, 100);
+                const orbitHaloMat = new THREE.MeshBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.5 });
+                const orbitHalo = new THREE.Mesh(orbitHaloGeom, orbitHaloMat);
+                orbitHalo.rotation.x = Math.PI / 2 + inclination;
+                scene.add(orbitHalo);
+                const grp = createPlanet(new THREE.Vector3(initialRadius, 0, 0), def.radius, def.color, { ring: def.ring, moons: def.moons });
+                // Store orbital parameters so we can update in animate().
+                grp.userData.orbitRadius = initialRadius;
+                grp.userData.inclination = inclination;
+                // Start at a random angle to give variety.
+                grp.userData.orbitAngle = Math.random() * Math.PI * 2;
+                // Increase orbital speed by a factor of three so planets
+                // complete their circuits faster.  Previously the speed was
+                // scaled down using 0.0005 to slow the orbits; here we keep
+                // that base scale but multiply by 3 for a noticeable boost.
+                grp.userData.orbitSpeed = def.speed * 0.0005 * 3.0;
+                planetsGroup.add(grp);
+            });
+        }
+
+        // Add a bright sun at the centre of the playable area to anchor the nebula
+        {
+            const sun = createSun();
+            scene.add(sun);
+        }
+
+        // Zodiac belt scale factor (recompute for belt)
+        const orbitScale = 5 * (2/3) * 0.3;
+        // Zodiac belt at orbit width 1000
+        const beltRadius = 1000 * orbitScale;
+        const beltGeom = new THREE.TorusGeometry(beltRadius, 7, 16, 128);
+        const beltMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+        const zodiacBelt = new THREE.Mesh(beltGeom, beltMat);
+        zodiacBelt.rotation.x = Math.PI / 2;
+        scene.add(zodiacBelt);
+        // Zodiac belt spokes dividing the belt into 12 segments
+        const spokeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, linewidth: 6 });
+        for (let i = 0; i < 12; i++) {
+            const angle = i * (Math.PI * 2 / 12);
+            const x = Math.cos(angle) * beltRadius;
+            const z = Math.sin(angle) * beltRadius;
+            const pts = [ new THREE.Vector3(0, 0, 0), new THREE.Vector3(x, 0, z) ];
+            const spokeGeom = new THREE.BufferGeometry().setFromPoints(pts);
+            const spoke = new THREE.Line(spokeGeom, spokeMat);
+            scene.add(spoke);
+        }
+
+        // Zodiac labels (Unicode + names)
+        const zodiacSymbols = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
+        const zodiacNames   = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
+        function createLabel(text) {
+            const canvas = document.createElement('canvas');
+            const size = 256;
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '40px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, size/2, size/2);
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(100, 50, 1);
+            return sprite;
+        }
+        for (let i = 0; i < 12; i++) {
+            const angle = i * (Math.PI * 2 / 12);
+            const x = Math.cos(angle) * beltRadius;
+            const z = Math.sin(angle) * beltRadius;
+            const sprite = createLabel(zodiacSymbols[i] + ' ' + zodiacNames[i]);
+            sprite.position.set(x, 0, z);
+            scene.add(sprite);
+        }
+
+        // Helper: create a simplified Taj Mahal–style temple in a given color
+        function createZodiacTemple(color) {
+            const temple = new THREE.Group();
+            // Main dome
+            const domeGeo = new THREE.SphereGeometry(5, 32, 16);
+            const domeMat = new THREE.MeshLambertMaterial({ color: color, emissive: color, emissiveIntensity: 0.3 });
+            const dome = new THREE.Mesh(domeGeo, domeMat);
+            dome.position.y = 5;
+            temple.add(dome);
+            // Four corner minarets
+            const minaretGeo = new THREE.CylinderGeometry(1, 1, 10, 16);
+            const minaretMat = new THREE.MeshLambertMaterial({ color: color, emissive: color, emissiveIntensity: 0.2 });
+            const corners = [
+                [6, 0, 6], [-6, 0, 6],
+                [6, 0, -6], [-6, 0, -6]
+            ];
+            corners.forEach(([mx, my, mz]) => {
+                const m = new THREE.Mesh(minaretGeo, minaretMat);
+                m.position.set(mx, 5, mz);
+                temple.add(m);
+            });
+
+            // Architectural intricacies: base platform
+            const baseGeo = new THREE.CylinderGeometry(8, 8, 1, 32);
+            const baseMat = new THREE.MeshLambertMaterial({ color: color, emissive: color, emissiveIntensity: 0.1 });
+            const base = new THREE.Mesh(baseGeo, baseMat);
+            base.position.y = 0.5;
+            temple.add(base);
+
+            // Decorative finial on top of dome
+            const finialGeo = new THREE.ConeGeometry(0.5, 2, 16);
+            const finialMat = domeMat; // reuse dome material
+            const finial = new THREE.Mesh(finialGeo, finialMat);
+            finial.position.set(0, 10, 0);
+            temple.add(finial);
+
+            // Arched entrances around the temple
+            const archGeo = new THREE.TorusGeometry(2, 0.5, 16, 32, Math.PI);
+            const archMat = domeMat;
+            const archPositions = [
+                [0, 1.5, beltRadius * 0.006],   // front
+                [0, 1.5, -beltRadius * 0.006],  // back
+                [beltRadius * 0.006, 1.5, 0],   // right
+                [-beltRadius * 0.006, 1.5, 0]   // left
+            ];
+            archPositions.forEach(([ax, ay, az]) => {
+                const arch = new THREE.Mesh(archGeo, archMat);
+                arch.rotation.z = Math.PI;
+                if (ax !== 0) arch.rotation.y = Math.PI / 2;
+                arch.position.set(ax, ay, az);
+                temple.add(arch);
+            });
+
+            // Scale the temple group to make it four times larger
+            temple.scale.set(4, 4, 4);
+
+            return temple;
+        }
+
+        // Color mapping for each zodiac sign (Aries → Pisces)
+        const zodiacColors = [
+            0xFF0000, // Aries – red
+            0x008000, // Taurus – green
+            0xFFFF00, // Gemini – yellow
+            0xC0C0C0, // Cancer – silver
+            0xFFD700, // Leo – gold
+            0x8B4513, // Virgo – brown
+            0xFFC0CB, // Libra – pink
+            0x000000, // Scorpio – black
+            0x800080, // Sagittarius – purple
+            0x000080, // Capricorn – navy
+            0x00FFFF, // Aquarius – aqua
+            0x0000FF  // Pisces – blue
+        ];
+
+        // Place a temple at each zodiac position along the belt
+        for (let i = 0; i < 12; i++) {
+            const angle = i * (Math.PI * 2 / 12);
+            const x = Math.cos(angle) * beltRadius;
+            const z = Math.sin(angle) * beltRadius;
+            const temple = createZodiacTemple(zodiacColors[i]);
+            temple.position.set(x, 0, z);
+            temple.rotation.y = -angle;
+            scene.add(temple);
+        }
+
+        // Function to generate a golden eyeball texture (used for floating eyes)
+        function generateEyeballTexture() {
+            const size = 256;
+            const cvs = document.createElement('canvas');
+            cvs.width = cvs.height = size;
+            const cctx = cvs.getContext('2d');
+            // White sclera
+            cctx.fillStyle = '#fdfdfd';
+            cctx.beginPath();
+            cctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+            cctx.fill();
+            // Iris outer ring (golden)
+            cctx.fillStyle = '#c9b037';
+            cctx.beginPath();
+            cctx.arc(size / 2, size / 2, size * 0.35, 0, Math.PI * 2);
+            cctx.fill();
+            // Iris inner ring (darker gold)
+            cctx.fillStyle = '#8b6a34';
+            cctx.beginPath();
+            cctx.arc(size / 2, size / 2, size * 0.2, 0, Math.PI * 2);
+            cctx.fill();
+            // Pupil
+            cctx.fillStyle = '#000000';
+            cctx.beginPath();
+            cctx.arc(size / 2, size / 2, size * 0.08, 0, Math.PI * 2);
+            cctx.fill();
+            return new THREE.CanvasTexture(cvs);
+        }
+
+        // Function to generate a blue eyeball texture for the player ship
+        function generateBlueEyeballTexture() {
+            const size = 256;
+            const cvs = document.createElement('canvas');
+            cvs.width = cvs.height = size;
+            const ctx = cvs.getContext('2d');
+            // Draw sclera
+            ctx.fillStyle = '#fdfdfd';
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            // Create a radial gradient for the iris to add depth
+            const irisGrad = ctx.createRadialGradient(size / 2, size / 2, size * 0.05, size / 2, size / 2, size * 0.35);
+            irisGrad.addColorStop(0, '#0b3d91');
+            irisGrad.addColorStop(0.5, '#4f9dfc');
+            irisGrad.addColorStop(1, '#0b3d91');
+            ctx.fillStyle = irisGrad;
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+            // Draw radial streaks within the iris for extra detail
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1.0;
+            const streakCount = 40;
+            for (let i = 0; i < streakCount; i++) {
+                const angle = (Math.PI * 2 * i) / streakCount + Math.random() * 0.05;
+                const innerR = size * 0.1;
+                const outerR = size * 0.33 + Math.random() * (size * 0.02);
+                const x1 = size / 2 + Math.cos(angle) * innerR;
+                const y1 = size / 2 + Math.sin(angle) * innerR;
+                const x2 = size / 2 + Math.cos(angle) * outerR;
+                const y2 = size / 2 + Math.sin(angle) * outerR;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            // Draw pupil
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            return new THREE.CanvasTexture(cvs);
+        }
+
+        // Function to generate a reptilian scale texture for dragons.  The
+        // texture is created procedurally by drawing overlapping circles in a
+        // hexagonal grid.  Colours vary subtly across the texture to evoke
+        // shimmering emerald scales.
+        function generateDragonScaleTexture() {
+            const size = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0a3810';
+            ctx.fillRect(0, 0, size, size);
+            const radius = 12;
+            const rowHeight = Math.sqrt(3) * radius;
+            for (let y = -radius; y < size + radius; y += rowHeight) {
+                const offsetX = ((Math.round(y / rowHeight) % 2) === 0) ? 0 : radius;
+                for (let x = -radius; x < size + radius; x += radius * 2) {
+                    const cx = x + offsetX;
+                    const cy = y;
+                    const hue = 0.33 + Math.random() * 0.05; // green hues
+                    const sat = 0.6 + Math.random() * 0.2;
+                    const lum = 0.25 + Math.random() * 0.1;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius * 0.9, 0, Math.PI * 2);
+                    ctx.fillStyle = new THREE.Color().setHSL(hue, sat, lum).getStyle();
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+            return texture;
+        }
+
+        // Generate a decorative filigree texture for the pyramid enemy.  The
+        // base layer is a deep red, overlaid with golden Eye of Horus motifs
+        // and swirling filigree lines.  This texture is used on the pyramid
+        // enemy to evoke an Egyptian aesthetic.
+        function generatePyramidTexture() {
+            const size = 512;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            // Base fill
+            ctx.fillStyle = '#640000';
+            ctx.fillRect(0, 0, size, size);
+            // Draw random filigree swirls
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 20; i++) {
+                ctx.beginPath();
+                const startX = Math.random() * size;
+                const startY = Math.random() * size;
+                ctx.moveTo(startX, startY);
+                const curves = 3 + Math.floor(Math.random() * 3);
+                for (let c = 0; c < curves; c++) {
+                    const cp1x = Math.random() * size;
+                    const cp1y = Math.random() * size;
+                    const cp2x = Math.random() * size;
+                    const cp2y = Math.random() * size;
+                    const endX = Math.random() * size;
+                    const endY = Math.random() * size;
+                    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+                }
+                ctx.stroke();
+            }
+            // Draw Eye of Horus motifs
+            ctx.fillStyle = '#ffd700';
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 3;
+            function drawEye(cx, cy, s) {
+                // Outer eye ellipse
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, s * 0.6, s * 0.4, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                // Iris
+                ctx.beginPath();
+                ctx.arc(cx, cy, s * 0.15, 0, Math.PI * 2);
+                ctx.fill();
+                // Eyelid sweep
+                ctx.beginPath();
+                ctx.moveTo(cx - s * 0.6, cy);
+                ctx.quadraticCurveTo(cx, cy - s * 0.5, cx + s * 0.6, cy);
+                ctx.stroke();
+                // Decorative tail
+                ctx.beginPath();
+                ctx.moveTo(cx + s * 0.6, cy);
+                ctx.bezierCurveTo(cx + s * 0.8, cy + s * 0.2, cx + s * 1.2, cy - s * 0.2, cx + s * 1.4, cy + s * 0.1);
+                ctx.stroke();
+            }
+            // Place a few eyes across the texture
+            for (let i = 0; i < 4; i++) {
+                const cx = (i % 2) * size * 0.5 + size * 0.25;
+                const cy = Math.floor(i / 2) * size * 0.5 + size * 0.25;
+                drawEye(cx + (Math.random() - 0.5) * 40, cy + (Math.random() - 0.5) * 40, 40 + Math.random() * 20);
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(1, 1);
+            return tex;
+        }
+
+        // Generate a subtle astral background texture for the skybox.  The canvas
+        // is filled with a dark gradient and dotted with faint, colourful stars
+        // and nebula wisps.  This texture is used for the scene background to
+        // make the void of space feel alive without overwhelming the player.
+        function generateSkyboxTexture() {
+            const size = 1024;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            // Dark radial gradient
+            const grad = ctx.createRadialGradient(size / 2, size / 2, size * 0.1, size / 2, size / 2, size * 0.8);
+            grad.addColorStop(0, '#01020d');
+            grad.addColorStop(1, '#000010');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, size, size);
+            // Draw faint nebula clouds
+            for (let i = 0; i < 30; i++) {
+                const nebX = Math.random() * size;
+                const nebY = Math.random() * size;
+                const nebR = 60 + Math.random() * 120;
+                const nebGrad = ctx.createRadialGradient(nebX, nebY, 0, nebX, nebY, nebR);
+                const hue = Math.random() * 1;
+                const col = new THREE.Color().setHSL(hue, 0.4, 0.3 + Math.random() * 0.2);
+                nebGrad.addColorStop(0, col.getStyle());
+                nebGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = nebGrad;
+                ctx.beginPath();
+                ctx.arc(nebX, nebY, nebR, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Draw tiny stars
+            for (let i = 0; i < 500; i++) {
+                const x = Math.random() * size;
+                const y = Math.random() * size;
+                const s = Math.random() * 1.5 + 0.5;
+                const starHue = Math.random();
+                const starCol = new THREE.Color().setHSL(starHue, 0.8, 0.7 + Math.random() * 0.2);
+                ctx.fillStyle = starCol.getStyle();
+                ctx.beginPath();
+                ctx.arc(x, y, s, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            return tex;
+        }
+
+        // Helper to create a colorful bloom of points
+        function createColorBloom(position, baseScale, options = {}) {
+            // options.speedScalar: scale factor for orbital speed (default 1)
+            // options.denseFactor: multiplier for point count density (default 1)
+            const speedScalar = options.speedScalar !== undefined ? options.speedScalar : 1.0;
+            const denseFactor = options.denseFactor !== undefined ? options.denseFactor : 1.0;
+            const pointCount = Math.floor(600 * denseFactor);
+            const positions = new Float32Array(pointCount * 3);
+            const colors = new Float32Array(pointCount * 3);
+            for (let i = 0; i < pointCount; i++) {
+                // random spherical distribution within radius 5
+                const r = Math.random() * 5;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = r * Math.cos(phi);
+                const color = new THREE.Color().setHSL(Math.random(), 0.8, 0.6);
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+            }
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const material = new THREE.PointsMaterial({ size: 0.8, vertexColors: true, transparent: true, opacity: 0.8 });
+            const bloom = new THREE.Points(geometry, material);
+            bloom.position.copy(position);
+            // Precompute orbital data for each particle: radius in XZ plane, angle and speed
+            const count = pointCount;
+            bloom.orbitR = new Float32Array(count);
+            bloom.angles = new Float32Array(count);
+            bloom.yPositions = new Float32Array(count);
+            bloom.speeds = new Float32Array(count);
+            for (let i = 0; i < count; i++) {
+                const x = positions[i * 3];
+                const y = positions[i * 3 + 1];
+                const z = positions[i * 3 + 2];
+                const r = Math.sqrt(x * x + z * z);
+                const angle = Math.atan2(z, x);
+                bloom.orbitR[i] = r;
+                bloom.angles[i] = angle;
+                bloom.yPositions[i] = y;
+                // inner rings orbit faster; outer slower; apply speed scalar
+                bloom.speeds[i] = (0.01 / (1 + r * 0.3)) * speedScalar;
+            }
+            // Generate a random tilt so that each bloom's orbit plane is oriented differently in 3D space
+            const tiltEuler = new THREE.Euler(
+                (Math.random() - 0.5) * Math.PI / 3,
+                (Math.random() - 0.5) * Math.PI / 3,
+                (Math.random() - 0.5) * Math.PI / 3
+            );
+            bloom.tilt = new THREE.Quaternion().setFromEuler(tiltEuler);
+            bloom.speedScalar = speedScalar;
+            // Allow custom tail length by storing a tailFactor.  Shorter tails result
+            // in less pronounced comet trails; larger values produce long sweeping
+            // streaks.  Default is 1.
+            bloom.tailFactor = options.tailFactor !== undefined ? options.tailFactor : 1.0;
+            // Create comet tail geometry: a line segment for each particle
+            const tailPositions = new Float32Array(pointCount * 6); // each point contributes two vertices (start and end)
+            const tailGeometry = new THREE.BufferGeometry();
+            tailGeometry.setAttribute('position', new THREE.BufferAttribute(tailPositions, 3));
+            const tailMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+            const tailMesh = new THREE.LineSegments(tailGeometry, tailMaterial);
+            bloom.tailGeometry = tailGeometry;
+            bloom.tailMesh = tailMesh;
+            // Hide the comet trails entirely.  Setting the mesh to not visible
+            // prevents the trail segments from rendering while still
+            // preserving the geometry in case it is referenced elsewhere.
+            bloom.tailMesh.visible = false;
+            bloom.add(tailMesh);
+            return bloom;
+        }
+
+        // Create an Ort cloud (swirling particle halo)
+        function createOrtCloud() {
+            // Generate a sparse outer halo of stars orbiting the sun.  Use fewer
+            // particles than before to give a more open feeling to the outer reaches of
+            // space.  Radii are biased toward the inner edge of the halo by using
+            // a quartic distribution on a random variable.
+            // Generate a sparse outer halo of stars.  Reduce the count so only half
+            // as many points populate the farthest reaches of space.
+            // Use even fewer points for the outer halo to make space feel more empty.
+            // Halve the count again so only ~375 points populate the farthest reaches.
+            // Reduce to 10% of the previous outer halo count
+            const count = 4;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                // Push stars far into deep space.  Radii are now five times larger
+                // than before, ranging roughly 5 000–10 000 units.  Use a quartic
+                // distribution to concentrate more points toward the inner edge of
+                // the halo while still placing some far away.
+                const u = Math.random();
+                const radius = 5000 + Math.pow(u, 4) * 5000;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = radius * Math.cos(phi);
+                const c = new THREE.Color().setHSL(Math.random(), 0.6, 0.5);
+                colors[i * 3] = c.r;
+                colors[i * 3 + 1] = c.g;
+                colors[i * 3 + 2] = c.b;
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.4, vertexColors: true, transparent: true, opacity: 0.4 });
+            const cloud = new THREE.Points(geo, mat);
+            return cloud;
+        }
+
+        // Create a denser inner star cloud orbiting near the sun.  These particles
+        // populate an expanded region (250–750 units from the centre) with a higher
+        // density to give a sense of stellar motion near the sun.  Reduce the
+        // overall count to avoid overcrowding in the near field.
+        function createInnerStarCloud() {
+            // Reduce the inner halo to 10% of its previous particle count
+            const count = 10;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                // Place inner stars at much larger radii: 1 250–3 750 units
+                const radius = 1250 + Math.random() * 2500;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = radius * Math.cos(phi);
+                // Use slightly brighter colours for inner stars
+                const c = new THREE.Color().setHSL(Math.random(), 0.7, 0.6);
+                colors[i * 3] = c.r;
+                colors[i * 3 + 1] = c.g;
+                colors[i * 3 + 2] = c.b;
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.4, vertexColors: true, transparent: true, opacity: 0.5 });
+            const stars = new THREE.Points(geo, mat);
+            return stars;
+        }
+
+        // Create a planet system consisting of a colourful planet, optional ring, and moons.
+        // `position` is the location of the planet system in the scene.
+        // `radius` sets the size of the central planet.  `color` defines its base hue.
+        // Options may include:
+        //   ring: boolean – whether to add a ring around the planet;
+        //   moons: number – how many moons to generate.
+        function createPlanet(position, radius, color, options = {}) {
+            // Double the planet's size so that all planets and their moons are twice
+            // as large as before.  Radius scaling is applied at the start so all
+            // subsequent calculations (rings, moons) use the enlarged value.
+            radius *= 2;
+            const group = new THREE.Group();
+            // Create a canvas texture with subtle bands to give the planet some
+            // variation in colour.  Randomise hues slightly for each latitudinal
+            // strip to emulate gas giants or marbled terrain.
+            const texSize = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = texSize;
+            const ctx = canvas.getContext('2d');
+            for (let y = 0; y < texSize; y++) {
+                const t = y / texSize;
+                // Interpolate between the base colour and a random offset
+                const baseCol = new THREE.Color(color);
+                const offCol = new THREE.Color().setHSL((Math.random() * 0.2), 0.6 + Math.random() * 0.3, 0.5 + Math.random() * 0.2);
+                const r = baseCol.r * (1 - t) + offCol.r * t;
+                const g = baseCol.g * (1 - t) + offCol.g * t;
+                const b = baseCol.b * (1 - t) + offCol.b * t;
+                ctx.fillStyle = `rgb(${Math.floor(r * 255)},${Math.floor(g * 255)},${Math.floor(b * 255)})`;
+                ctx.fillRect(0, y, texSize, 1);
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+            const planetGeo = new THREE.SphereGeometry(radius, 32, 32);
+            const planetMat = new THREE.MeshStandardMaterial({ map: texture });
+            const planet = new THREE.Mesh(planetGeo, planetMat);
+            planet.castShadow = false;
+            group.add(planet);
+            // Create a ring if requested
+            if (options.ring) {
+                const ringInnerR = radius * 1.3;
+                const ringTube = radius * 0.12;
+                const ringGeo = new THREE.TorusGeometry(ringInnerR, ringTube, 32, 64);
+                const ringMat = new THREE.MeshLambertMaterial({ color: 0xd8bfd8, emissive: new THREE.Color(0x663399), emissiveIntensity: 0.3, side: THREE.DoubleSide });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                // Tilt the ring slightly relative to the horizontal plane
+                ring.rotation.x = Math.PI / 2.5;
+                group.add(ring);
+            }
+            // Generate moons that orbit around the planet
+            const moonCount = options.moons || 0;
+            group.userData.moons = [];
+            for (let i = 0; i < moonCount; i++) {
+                const moonRadius = radius * (0.05 + Math.random() * 0.05);
+                const moonGeo = new THREE.SphereGeometry(moonRadius, 16, 16);
+                // Each moon gets a random pastel colour
+                const moonColor = new THREE.Color().setHSL(Math.random(), 0.5 + Math.random() * 0.3, 0.6 + Math.random() * 0.2);
+                const moonMat = new THREE.MeshLambertMaterial({ color: moonColor });
+                const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+                // Start each moon at a random orbital radius and angle
+                const orbitRadius = radius * (1.8 + Math.random() * 1.5);
+                const angle = Math.random() * Math.PI * 2;
+                moonMesh.position.set(Math.cos(angle) * orbitRadius, 0, Math.sin(angle) * orbitRadius);
+                // Speed inversely proportional to orbital radius (moons further out move slower)
+                const speed = 0.002 + Math.random() * 0.003;
+                group.userData.moons.push({ mesh: moonMesh, orbitRadius, angle, speed });
+                group.add(moonMesh);
+            }
+            group.position.copy(position);
+            return group;
+        }
+
+        // Create a radiant sun at the origin.  The sun is a large glowing sphere
+        // that emits light to illuminate the surrounding nebulae and planets.  A
+        // custom canvas texture is used to give the sun a swirling plasma pattern.
+        function createSun() {
+            // Increase the sun's radius dramatically to make it three times larger
+            // than before.  A larger sun anchors the star system and provides
+            // a stronger visual focal point.
+            const radius = (64 * 3) * 0.8;
+            const sunGeo = new THREE.SphereGeometry(radius, 32, 32);
+            // Create a canvas texture with a radial gradient and swirling
+            // filament lines to evoke a turbulent solar surface.  This is not
+            // animated but provides a beautiful swirl of colour.
+            const size = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const cx = size / 2;
+            const cy = size / 2;
+            // Radial gradient from white at the centre to deep orange at the edge
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
+            grad.addColorStop(0, '#fff5b1');
+            grad.addColorStop(0.3, '#ffd27f');
+            grad.addColorStop(0.6, '#ff9a00');
+            grad.addColorStop(1, '#cc5500');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, size, size);
+            // Draw swirling filaments: a set of spirals emanating from the centre
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 8; i++) {
+                const baseAngle = i * Math.PI / 4;
+                ctx.beginPath();
+                for (let r = 0; r < cx; r += 6) {
+                    const angle = baseAngle + r * 0.04;
+                    const x = cx + Math.cos(angle) * r;
+                    const y = cy + Math.sin(angle) * r;
+                    if (r === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.needsUpdate = true;
+            const sunMat = new THREE.MeshBasicMaterial({ map: tex });
+            const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+            // Point light emanating from the sun: warm colour and high intensity
+            const sunLight = new THREE.PointLight(0xffd27f, 3.0, 0);
+            sunLight.position.set(0, 0, 0);
+            sunMesh.add(sunLight);
+            return sunMesh;
+        }
+    // Player ship as a blue eyeball with wings
+        const player = new THREE.Group();
+        // Eyeball body
+        const playerEyeTex = generateBlueEyeballTexture();
+        const eyeballGeo = new THREE.SphereGeometry(1.5, 32, 32);
+        const eyeballMat = new THREE.MeshLambertMaterial({ map: playerEyeTex, emissive: new THREE.Color(0x004488), emissiveIntensity: 0.6 });
+        const eyeball = new THREE.Mesh(eyeballGeo, eyeballMat);
+        player.add(eyeball);
+        // Wings (simple flat boxes to evoke feathers)
+        function createWing(isLeft) {
+            // Create a much larger, more detailed wing for the eyeball ship.  The
+            // wing is extended in length and width, and slightly thicker, giving
+            // it a dramatic angelic presence.  The geometry is shifted so that
+            // the pivot is at the inner edge where it attaches to the eyeball.
+            const wingGeo = new THREE.BoxGeometry(1.6, 0.4, 10.0);
+            const wingMat = new THREE.MeshLambertMaterial({ color: 0x87ceeb, emissive: new THREE.Color(0x004488), emissiveIntensity: 0.4 });
+            const wing = new THREE.Mesh(wingGeo, wingMat);
+            wing.geometry.translate(0, 0, -5.0);
+            // Mark whether this is the left wing so the flapping animation can
+            // alternate appropriately.
+            wing.isLeft = !!isLeft;
+            return wing;
+        }
+        const leftWing = createWing(true);
+        leftWing.position.set(-3.0, 0.0, -0.6);
+        leftWing.rotation.y = Math.PI / 10;
+        leftWing.rotation.z = Math.PI / 6;
+        const rightWing = createWing(false);
+        rightWing.position.set(3.0, 0.0, -0.6);
+        rightWing.rotation.y = -Math.PI / 10;
+        rightWing.rotation.z = -Math.PI / 6;
+        player.add(leftWing);
+        player.add(rightWing);
+        // Register the player's wings for animation
+        playerWings.push(leftWing);
+        playerWings.push(rightWing);
+        // Thrusters: add glowing exhaust cones at the back of the eyeball to enhance the ship's appearance
+        function createThruster(offsetX) {
+            // A cone that tapers backwards to give a rocket-like feel
+            const geo = new THREE.ConeGeometry(0.5, 2.0, 16, 1);
+            const mat = new THREE.MeshLambertMaterial({ color: 0x00bfff, emissive: new THREE.Color(0x003f7f), emissiveIntensity: 0.8 });
+            const thruster = new THREE.Mesh(geo, mat);
+            // Align the cone along the +Z axis (by default ConeGeometry points up along +Y)
+            thruster.rotation.x = Math.PI / 2;
+            // Position slightly behind the eyeball and offset to either side
+            thruster.position.set(offsetX, -0.3, 1.8);
+            return thruster;
+        }
+        const leftThruster = createThruster(-0.7);
+        const rightThruster = createThruster(0.7);
+        player.add(leftThruster);
+        player.add(rightThruster);
+
+        // Add decorative horns and a halo ring to the player's ship for extra flair
+        (function addPlayerAdornments() {
+            // Horns: two small cones positioned on top of the eyeball
+            const hornGeo = new THREE.ConeGeometry(0.3, 1.2, 12);
+            const hornMat = new THREE.MeshLambertMaterial({ color: 0xffd700, emissive: new THREE.Color(0x554400), emissiveIntensity: 0.6 });
+            const hornLeft = new THREE.Mesh(hornGeo, hornMat);
+            const hornRight = new THREE.Mesh(hornGeo, hornMat);
+            // Default cone points up along +Y; offset so base sits on top of eyeball
+            hornLeft.position.set(-0.5, 1.5, -0.5);
+            hornRight.position.set(0.5, 1.5, -0.5);
+            hornLeft.rotation.x = -Math.PI / 8;
+            hornRight.rotation.x = -Math.PI / 8;
+            player.add(hornLeft);
+            player.add(hornRight);
+            // Ring: a torus encircling the eyeball like a halo
+            const ringGeo = new THREE.TorusGeometry(2.3, 0.08, 8, 32);
+            const ringMat = new THREE.MeshLambertMaterial({ color: 0xffa500, emissive: new THREE.Color(0x663300), emissiveIntensity: 0.4 });
+            const halo = new THREE.Mesh(ringGeo, ringMat);
+            halo.rotation.x = Math.PI / 2;
+            halo.position.set(0, 0.6, 0);
+            player.add(halo);
+        })();
+        scene.add(player);
+        player.position.set(0, 0, 0);
+        player.rotation.order = 'YXZ';
+        // Trail segments for player (thicker ribbons)
+        let playerTrailPoints = [];
+        let playerTrailSegments = [];
+
+        // Enemy ship: a huge square pyramid.  We apply a richly detailed
+        // filigree texture featuring golden Eyes of Horus and swirling
+        // ornaments.  The apex faces forward along the -Z axis.
+        const enemyGeometry = new THREE.ConeGeometry(14, 20, 4);
+        const pyramidTex = generatePyramidTexture();
+        const enemyMaterial = new THREE.MeshLambertMaterial({ map: pyramidTex, color: 0xffffff, emissive: new THREE.Color(0x550000), emissiveIntensity: 0.5 });
+        const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+        // Rotate the pyramid so its point aims along the forward (-Z) axis rather than up
+        enemy.rotateX(Math.PI / 2);
+        scene.add(enemy);
+        enemy.rotation.order = 'YXZ';
+
+        // Create a dragon adversary.  The dragon is a serpent‑like creature
+        // comprised of several segments and wings.  It does not fire but moves
+        // independently and can collide with both the player and the enemy.  Its
+        // hitbox is intentionally large to increase challenge.
+        (function createDragon() {
+            // Head of the dragon.  Apply the scale texture and a vibrant emissive
+            // glow to make the head stand out from the body.
+            const headGeo = new THREE.SphereGeometry(3, 24, 24);
+            const headMat = new THREE.MeshLambertMaterial({ map: dragonScaleTex, emissive: new THREE.Color(0x003300), emissiveIntensity: 0.7 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            dragon.add(head);
+            // Body segments: extend the dragon's length by using more segments and
+            // decreasing their size gradually.  Each segment uses the shared
+            // dragon scale texture.
+            for (let i = 1; i <= 16; i++) {
+                const segSize = Math.max(3 - i * 0.25, 0.7);
+                const segGeo = new THREE.SphereGeometry(segSize, 24, 24);
+                const segMat = new THREE.MeshLambertMaterial({ map: dragonScaleTex, emissive: new THREE.Color(0x003300), emissiveIntensity: 0.6 });
+                const seg = new THREE.Mesh(segGeo, segMat);
+                seg.position.set(0, 0, i * 3);
+                dragon.add(seg);
+            }
+            // Wings for the dragon: larger fins resembling flappy wings.  Use
+            // wider and longer boxes with the scale texture for continuity.
+            function createDragonWing(isLeft) {
+                const wingGeo = new THREE.BoxGeometry(1.0, 0.5, 8.0);
+                const wingMat = new THREE.MeshLambertMaterial({ map: dragonScaleTex, emissive: new THREE.Color(0x002200), emissiveIntensity: 0.5 });
+                const wing = new THREE.Mesh(wingGeo, wingMat);
+                wing.geometry.translate(0, 0, -4.0);
+                wing.isLeft = !!isLeft;
+                return wing;
+            }
+            const dLeftWing = createDragonWing(true);
+            dLeftWing.position.set(-3.0, 1.0, 0);
+            dLeftWing.rotation.y = Math.PI / 6;
+            const dRightWing = createDragonWing(false);
+            dRightWing.position.set(3.0, 1.0, 0);
+            dRightWing.rotation.y = -Math.PI / 6;
+            dragon.add(dLeftWing);
+            dragon.add(dRightWing);
+            // Register wings for flapping animation
+            dragonWings.push(dLeftWing);
+            dragonWings.push(dRightWing);
+            // Set initial velocity property on dragon
+            dragon.velocity = new THREE.Vector3();
+            // Add dragon to the scene
+            scene.add(dragon);
+            // Initialize patrol and oscillation parameters
+            dragon.userData.orbitRadius = 200;
+            dragon.userData.orbitAngle = 0;
+            dragon.userData.orbitSpeed = 0.0015;
+            dragon.userData.oscillationAmplitude = 15;
+            dragon.userData.oscillationFrequency = 2.0;
+        })();
+
+
+        // Trail segments for enemy
+        let enemyTrailPoints = [];
+        let enemyTrailSegments = [];
+
+        // Bullets
+        const bullets = [];
+        const enemyBullets = [];
+        const bulletGeometry = new THREE.SphereGeometry(0.1, 6, 6);
+        const bulletMaterial = new THREE.MeshBasicMaterial({color: 0xffffff});
+        const enemyBulletMaterial = new THREE.MeshBasicMaterial({color: 0xff00ff});
+
+        // State variables
+        const keyState = {};
+        let shootCooldown = 0;
+        let enemyShootCooldown = 0;
+        player.velocity = new THREE.Vector3();
+        enemy.velocity = new THREE.Vector3();
+
+        // Reset game variables
+        function reset() {
+            score = 0;
+            running = true;
+            overlay.style.visibility = 'hidden';
+            // Spawn the player far from the sun, facing towards the origin.  Place
+            // the ship along +Z so it starts on the outskirts of the solar system
+            // looking inward.
+            player.position.set(0, 0, 800);
+            player.lookAt(new THREE.Vector3(0, 0, 0));
+            player.velocity.set(0, 0, 0);
+            // Position enemy at a random point on a sphere away from the player
+            {
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const radius = 120 + Math.random() * 60; // between 120 and 180 units away
+                const ex = Math.sin(phi) * Math.cos(theta) * radius;
+                const ey = Math.sin(phi) * Math.sin(theta) * radius;
+                const ez = Math.cos(phi) * radius;
+                enemy.position.set(ex, ey, ez);
+            }
+            enemy.rotation.set(0, 0, 0);
+            enemy.velocity.set(0, 0, 0);
+            // Position dragon at a random point on a sphere away from the player
+            {
+                const thetaD = Math.random() * Math.PI * 2;
+                const phiD = Math.random() * Math.PI;
+                const radiusD = 120 + Math.random() * 60;
+                const dx = Math.sin(phiD) * Math.cos(thetaD) * radiusD;
+                const dy = Math.sin(phiD) * Math.sin(thetaD) * radiusD;
+                const dz = Math.cos(phiD) * radiusD;
+                dragon.position.set(dx, dy, dz);
+            }
+            dragon.rotation.set(0, 0, 0);
+            dragon.velocity.set(0, 0, 0);
+            dragonTrailPoints = [];
+            // Remove existing dragon trail segments
+            dragonTrailSegments.forEach((seg) => scene.remove(seg));
+            dragonTrailSegments = [];
+
+            // Reposition the second dragon far from the player
+            {
+                const thetaD2 = Math.random() * Math.PI * 2;
+                const phiD2 = Math.random() * Math.PI;
+                const rD2 = 120 + Math.random() * 60;
+                const dx2 = Math.sin(phiD2) * Math.cos(thetaD2) * rD2;
+                const dy2 = Math.sin(phiD2) * Math.sin(thetaD2) * rD2;
+                const dz2 = Math.cos(phiD2) * rD2;
+                dragon2.position.set(dx2, dy2, dz2);
+            }
+            dragon2.rotation.set(0, 0, 0);
+            dragon2.velocity.set(0, 0, 0);
+            dragon2TrailPoints = [];
+            dragon2TrailSegments.forEach((seg) => scene.remove(seg));
+            dragon2TrailSegments = [];
+            playerTrailPoints = [];
+            enemyTrailPoints = [];
+            bullets.splice(0, bullets.length);
+            enemyBullets.splice(0, enemyBullets.length);
+            shootCooldown = 0;
+            enemyShootCooldown = 100;
+            // Reset rings: remove existing rings and spawn new ones
+            rings.forEach((r) => {
+                ringsGroup.remove(r);
+            });
+            rings.length = 0;
+            // Spawn plenty of rings in the outer reaches.  In addition to
+            // several single rings, create a couple of ring combos to reward
+            // daring pilots.  Reset the speed boost timer.
+            speedBoostTimer = 0;
+            for (let i = 0; i < 10; i++) {
+                spawnRing();
+            }
+            // Spawn two ring combos to encourage chaining
+            spawnRingCombo();
+            spawnRingCombo();
+        }
+
+        function randomRange(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        // Keyboard events
+        window.addEventListener('keydown', (e) => {
+            keyState[e.key.toLowerCase()] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            keyState[e.key.toLowerCase()] = false;
+        });
+
+        // Main animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!running) return;
+            // Decrement the speed boost timer if active
+            if (speedBoostTimer > 0) speedBoostTimer--;
+            // Update dynamic decor animations
+            const t = performance.now() * 0.001;
+            // Animate colour blooms: each particle orbits around its centre like a solar system
+            colorBloomGroup.children.forEach((bloom) => {
+                const positions = bloom.geometry.attributes.position.array;
+                const tailPositions = bloom.tailGeometry.attributes.position.array;
+                const count = bloom.orbitR.length;
+                for (let i = 0; i < count; i++) {
+                    // Update the orbital angle according to each particle's speed
+                    bloom.angles[i] += bloom.speeds[i];
+                    const r = bloom.orbitR[i];
+                    // Compute the raw unrotated position in the bloom's local coordinate frame
+                    const x = r * Math.cos(bloom.angles[i]);
+                    const y = bloom.yPositions[i];
+                    const z = r * Math.sin(bloom.angles[i]);
+                    // Apply the bloom's tilt so that its orbit plane is oriented differently
+                    const v = new THREE.Vector3(x, y, z).applyQuaternion(bloom.tilt);
+                    // update point position
+                    positions[i * 3] = v.x;
+                    positions[i * 3 + 1] = v.y;
+                    positions[i * 3 + 2] = v.z;
+                    // compute previous position for tail (lagging behind) using the same tilt
+                    // Use a tail factor so that different blooms can have different tail lengths.
+                    const prevAngle = bloom.angles[i] - bloom.speeds[i] * 12.0 * (bloom.tailFactor || 1.0);
+                    const px = r * Math.cos(prevAngle);
+                    const pz = r * Math.sin(prevAngle);
+                    const pvec = new THREE.Vector3(px, y, pz).applyQuaternion(bloom.tilt);
+                    const tailIdx = i * 6;
+                    // start point (current)
+                    tailPositions[tailIdx] = v.x;
+                    tailPositions[tailIdx + 1] = v.y;
+                    tailPositions[tailIdx + 2] = v.z;
+                    // end point (previous)
+                    tailPositions[tailIdx + 3] = pvec.x;
+                    tailPositions[tailIdx + 4] = pvec.y;
+                    tailPositions[tailIdx + 5] = pvec.z;
+                }
+                bloom.geometry.attributes.position.needsUpdate = true;
+                bloom.tailGeometry.attributes.position.needsUpdate = true;
+            });
+            // Rotate star clouds independently.  Outer halo rotates very slowly while the
+            // inner halo rotates a bit faster.
+            // Rotate the star halos.  The outer halo rotates very slowly, while the
+            // inner halo rotates a bit faster.  Reduce the outer rotation speed
+            // further so the most distant stars drift lazily around the sun.
+            // Rotate star halos at slower speeds now that they are pushed far into deep space
+            if (outerCloud) outerCloud.rotation.y += 0.00002;
+            if (innerStars) innerStars.rotation.y += 0.00007;
+
+            // Animate wing flapping for the player and dragons.  The wings oscillate
+            // sinusoidally to evoke flight.  Left and right wings move in opposite
+            // directions to resemble a natural flapping motion.
+            const tWing = performance.now() * 0.001;
+            playerWings.forEach((wing) => {
+                const amplitude = 0.5;
+                const freq = 5.0;
+                const flap = Math.sin(tWing * freq) * amplitude;
+                if (wing.isLeft) {
+                    wing.rotation.z = Math.PI / 6 + flap;
+                } else {
+                    wing.rotation.z = -Math.PI / 6 - flap;
+                }
+            });
+            dragonWings.forEach((wing) => {
+                const amplitude = 0.4;
+                const freq = 3.0;
+                const flap = Math.sin(tWing * freq) * amplitude;
+                if (wing.isLeft) {
+                    wing.rotation.z = Math.PI / 6 + flap;
+                } else {
+                    wing.rotation.z = -Math.PI / 6 - flap;
+                }
+            });
+            // Slowly rotate planets and update their moons' orbits
+            planetsGroup.children.forEach((planetSystem) => {
+                // Rotate the planet on its own axis
+                planetSystem.rotation.y += 0.0005;
+                // Update moon orbits if present
+                if (planetSystem.userData && planetSystem.userData.moons) {
+                    planetSystem.userData.moons.forEach((moon) => {
+                        moon.angle += moon.speed;
+                        const r = moon.orbitRadius;
+                        moon.mesh.position.set(Math.cos(moon.angle) * r, 0, Math.sin(moon.angle) * r);
+                    });
+                }
+                // Update planetary orbit around the sun if orbit parameters are defined
+                if (planetSystem.userData && planetSystem.userData.orbitRadius) {
+                    planetSystem.userData.orbitAngle += planetSystem.userData.orbitSpeed;
+                    const r = planetSystem.userData.orbitRadius;
+                    const a = planetSystem.userData.orbitAngle;
+                    const basePos = new THREE.Vector3(
+                        Math.cos(a) * r,
+                        0,
+                        Math.sin(a) * r
+                    );
+                    basePos.applyAxisAngle(new THREE.Vector3(1, 0, 0), planetSystem.userData.inclination || 0);
+                    planetSystem.position.copy(basePos);
+                }
+            });
+
+            // Update rainbow pops: move particles outward and fade out
+            for (let i = pops.length - 1; i >= 0; i--) {
+                const pop = pops[i];
+                const posArr = pop.positions;
+                for (let j = 0; j < pop.velocities.length; j++) {
+                    posArr[j * 3] += pop.velocities[j].x;
+                    posArr[j * 3 + 1] += pop.velocities[j].y;
+                    posArr[j * 3 + 2] += pop.velocities[j].z;
+                }
+                pop.life--;
+                pop.material.opacity = pop.life / 60;
+                pop.geometry.attributes.position.needsUpdate = true;
+                if (pop.life <= 0) {
+                    scene.remove(pop.mesh);
+                    pops.splice(i, 1);
+                }
+            }
+            updatePlayer();
+            updateEnemy();
+            updateDragon();
+            updateBullets();
+            // Update flying saucers (movement, spawning and landing)
+            updateSaucers();
+            updateRings();
+            updateTrails();
+            updateCamera();
+            renderer.render(scene, camera);
+        }
+
+        function updatePlayer() {
+            // Controls: a/d -> yaw, w/s -> pitch, shift/ctrl -> roll? optional
+            const turnSpeed = 0.04;
+            const accel = 0.05;
+            // yaw
+            if (keyState['arrowleft'] || keyState['a']) {
+                player.rotation.y += turnSpeed;
+            }
+            if (keyState['arrowright'] || keyState['d']) {
+                player.rotation.y -= turnSpeed;
+            }
+            // pitch
+            if (keyState['arrowup'] || keyState['w']) {
+                player.rotation.x += turnSpeed;
+            }
+            if (keyState['arrowdown'] || keyState['s']) {
+                player.rotation.x -= turnSpeed;
+            }
+            // Accelerate forward (space also accelerates a bit).  If a speed
+            // boost is active (awarded by combo rings), multiply acceleration.
+            if (keyState[' '] || keyState['shift']) {
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(player.quaternion);
+                const boost = speedBoostTimer > 0 ? 3.0 : 1.0;
+                player.velocity.addScaledVector(forward, accel * boost);
+            }
+            // Apply drag
+            player.velocity.multiplyScalar(0.98);
+            // Cap speed
+            if (player.velocity.length() > 2) {
+                player.velocity.setLength(2);
+            }
+            player.position.add(player.velocity);
+            // Fire bullet: create a purple laser cylinder oriented along the player's forward vector
+            if ((keyState['enter'] || keyState['x']) && shootCooldown <= 0) {
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(player.quaternion).normalize();
+                // Create a larger cylindrical laser for machine-gun–style fire
+                const geo = new THREE.CylinderGeometry(0.5, 0.5, 5, 12);
+                // Use a vibrant rainbow colour for each shot
+                const color = new THREE.Color().setHSL(Math.random(), 0.9, 0.5);
+                const mat = new THREE.MeshBasicMaterial({ color: color });
+                const bullet = new THREE.Mesh(geo, mat);
+                bullet.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), forward);
+                // Position bullet slightly in front of player
+                bullet.position.copy(player.position).addScaledVector(forward, 2.5);
+                // Increase bullet speed and inherit player velocity
+                bullet.velocity = forward.clone().multiplyScalar(12).add(player.velocity);
+                bullet.life = 100;
+                bullets.push(bullet);
+                scene.add(bullet);
+                // Short cooldown for rapid fire
+                shootCooldown = 3;
+            }
+            if (shootCooldown > 0) shootCooldown--;
+        }
+
+        function updateEnemy() {
+            // Turn towards player
+            const toPlayer = player.position.clone().sub(enemy.position);
+            const desiredDir = toPlayer.clone().normalize();
+            // Compute current forward vector
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(enemy.quaternion);
+            // Rotate enemy gradually towards desiredDir
+            const axis = new THREE.Vector3().crossVectors(forward, desiredDir).normalize();
+            const angleDiff = forward.angleTo(desiredDir);
+            if (angleDiff > 0.01) {
+                enemy.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(axis, angleDiff * 0.02));
+            }
+            // Accelerate towards player extremely slowly to emphasise its massive size
+            enemy.velocity.add(desiredDir.multiplyScalar(0.003));
+            enemy.velocity.multiplyScalar(0.98);
+            // Cap speed lower than player
+            if (enemy.velocity.length() > 0.4) enemy.velocity.setLength(0.4);
+            enemy.position.add(enemy.velocity);
+            // Enemy no longer fires bullets; mover is now passive
+            // Collision: enemy collides with player (bigger hitbox)
+            if (player.position.distanceTo(enemy.position) < 5) {
+                endGame();
+            }
+            // Prevent enemy from getting stuck inside the sun
+            const sunRadius = 64 * 3; // matches createSun radius
+            const buffer = 5;
+            const distFromSun = enemy.position.length();
+            if (distFromSun < sunRadius + buffer) {
+                enemy.position.setLength(sunRadius + buffer);
+            }
+        }
+
+        // Update dragon: patrols around sun with oscillation, chases enemy if close
+        function updateDragon() {
+            const t = performance.now() * 0.001;
+            const dist = dragon.position.distanceTo(enemy.position);
+            if (dist > 100) {
+                // Patrol around the sun with vertical oscillation
+                dragon.userData.orbitAngle += dragon.userData.orbitSpeed;
+                const r = dragon.userData.orbitRadius;
+                const a = dragon.userData.orbitAngle;
+                const x = Math.cos(a) * r;
+                const z = Math.sin(a) * r;
+                const y = Math.sin(t * dragon.userData.oscillationFrequency) * dragon.userData.oscillationAmplitude;
+                dragon.position.set(x, y, z);
+                dragon.lookAt(0, 0, 0);
+            } else {
+                // Provoked: chase the pyramid
+                const toTarget = enemy.position.clone().sub(dragon.position).normalize();
+                const forwardVec = new THREE.Vector3(0, 0, -1).applyQuaternion(dragon.quaternion);
+                const turnAxis = new THREE.Vector3().crossVectors(forwardVec, toTarget).normalize();
+                const angleDiff = forwardVec.angleTo(toTarget);
+                if (angleDiff > 0.01) {
+                    dragon.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(turnAxis, angleDiff * 0.02));
+                }
+                dragon.velocity.add(toTarget.multiplyScalar(0.002));
+                dragon.velocity.multiplyScalar(0.98);
+                if (dragon.velocity.length() > 0.35) {
+                    dragon.velocity.setLength(0.35);
+                }
+                dragon.position.add(dragon.velocity);
+            }
+            // Prevent dragon from getting stuck inside the sun
+            const sunRadius = 64 * 3;
+            const buffer = 5;
+            const distFromSun = dragon.position.length();
+            if (distFromSun < sunRadius + buffer) {
+                dragon.position.setLength(sunRadius + buffer);
+            }
+        }
+
+        function updateBullets() {
+            // Update player bullets
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.position.add(b.velocity);
+                b.life--;
+                // Remove bullet if expired
+                if (b.life <= 0) {
+                    scene.remove(b);
+                    bullets.splice(i, 1);
+                    continue;
+                }
+                // Collision with enemy (bigger hitbox)
+                if (b.position.distanceTo(enemy.position) < 5) {
+                    // The bullet hit the enemy pyramid
+                    scene.remove(b);
+                    bullets.splice(i, 1);
+                    score++;
+                    // Create an explosion at the hit point
+                    createExplosion(enemy.position.clone());
+                    // Reposition the enemy to a random point on a sphere far away and reset its velocity
+                    {
+                        const theta2 = Math.random() * Math.PI * 2;
+                        const phi2 = Math.random() * Math.PI;
+                        const r2 = 120 + Math.random() * 60;
+                        const ex2 = Math.sin(phi2) * Math.cos(theta2) * r2;
+                        const ey2 = Math.sin(phi2) * Math.sin(theta2) * r2;
+                        const ez2 = Math.cos(phi2) * r2;
+                        enemy.position.set(ex2, ey2, ez2);
+                        enemy.velocity.set(0, 0, 0);
+                    }
+                    break;
+                }
+                // Collision with first dragon (bigger hitbox)
+                if (dragon && b.position.distanceTo(dragon.position) < 5) {
+                    scene.remove(b);
+                    bullets.splice(i, 1);
+                    score++;
+                    createExplosion(dragon.position.clone());
+                    {
+                        const thetaD = Math.random() * Math.PI * 2;
+                        const phiD = Math.random() * Math.PI;
+                        const rD = 120 + Math.random() * 60;
+                        const dx = Math.sin(phiD) * Math.cos(thetaD) * rD;
+                        const dy = Math.sin(phiD) * Math.sin(thetaD) * rD;
+                        const dz = Math.cos(phiD) * rD;
+                        dragon.position.set(dx, dy, dz);
+                        dragon.velocity = new THREE.Vector3(0, 0, 0);
+                        dragonTrailPoints = [];
+                        dragonTrailSegments.forEach(seg => scene.remove(seg));
+                        dragonTrailSegments = [];
+                    }
+                    break;
+                }
+                // Collision with second dragon
+                if (dragon2 && b.position.distanceTo(dragon2.position) < 5) {
+                    scene.remove(b);
+                    bullets.splice(i, 1);
+                    score++;
+                    createExplosion(dragon2.position.clone());
+                    {
+                        const thetaD2 = Math.random() * Math.PI * 2;
+                        const phiD2 = Math.random() * Math.PI;
+                        const rD2 = 120 + Math.random() * 60;
+                        const dx2 = Math.sin(phiD2) * Math.cos(thetaD2) * rD2;
+                        const dy2 = Math.sin(phiD2) * Math.sin(thetaD2) * rD2;
+                        const dz2 = Math.cos(phiD2) * rD2;
+                        dragon2.position.set(dx2, dy2, dz2);
+                        dragon2.velocity = new THREE.Vector3(0, 0, 0);
+                        // reset second dragon trail
+                        dragon2TrailPoints = [];
+                        dragon2TrailSegments.forEach(seg => scene.remove(seg));
+                        dragon2TrailSegments = [];
+                    }
+                    break;
+                }
+                // Collision with flying saucers
+                for (let j = saucers.length - 1; j >= 0; j--) {
+                    const s = saucers[j];
+                    if (b.position.distanceTo(s.position) < 4) {
+                        // Destroy bullet and saucer
+                        scene.remove(b);
+                        bullets.splice(i, 1);
+                        score++;
+                        createExplosion(s.position.clone());
+                        scene.remove(s);
+                        saucers.splice(j, 1);
+                        // After handling this collision, exit the saucer loop
+                        break;
+                    }
+                }
+            }
+            // Update enemy bullets
+            for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                const b = enemyBullets[i];
+                b.position.add(b.velocity);
+                b.life--;
+                if (b.life <= 0) {
+                    scene.remove(b);
+                    enemyBullets.splice(i, 1);
+                    continue;
+                }
+                // Hit player?
+                if (b.position.distanceTo(player.position) < 2) {
+                    endGame();
+                    return;
+                }
+            }
+        }
+
+        function updateTrails() {
+            // Player trail: maintain thick ribbon segments using cylinders
+            playerTrailPoints.push(player.position.clone());
+            const maxPoints = 60;
+            if (playerTrailPoints.length > maxPoints) {
+                playerTrailPoints.shift();
+                const seg = playerTrailSegments.shift();
+                if (seg) scene.remove(seg);
+            }
+            // Create a new segment between last two points
+            if (playerTrailPoints.length > 1) {
+                const l = playerTrailPoints.length;
+                const p1 = playerTrailPoints[l - 2];
+                const p2 = playerTrailPoints[l - 1];
+                const dir = new THREE.Vector3().subVectors(p2, p1);
+                const length = dir.length();
+                if (length > 0.01) {
+                    const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+                    const radius = 0.2;
+                    const cylGeo = new THREE.CylinderGeometry(radius, radius, length, 6);
+                    const cylMat = new THREE.MeshBasicMaterial({color: 0x00ffff, transparent: true, opacity: 0.5});
+                    const cyl = new THREE.Mesh(cylGeo, cylMat);
+                    // Orient cylinder from p1 to p2 (y-axis to direction)
+                    cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+                    cyl.position.copy(mid);
+                    playerTrailSegments.push(cyl);
+                    scene.add(cyl);
+                }
+            }
+            // Enemy trail
+            enemyTrailPoints.push(enemy.position.clone());
+            const maxEnemyPoints = 60;
+            if (enemyTrailPoints.length > maxEnemyPoints) {
+                enemyTrailPoints.shift();
+                const seg = enemyTrailSegments.shift();
+                if (seg) scene.remove(seg);
+            }
+            if (enemyTrailPoints.length > 1) {
+                const l = enemyTrailPoints.length;
+                const p1 = enemyTrailPoints[l - 2];
+                const p2 = enemyTrailPoints[l - 1];
+                const dir = new THREE.Vector3().subVectors(p2, p1);
+                const length = dir.length();
+                if (length > 0.01) {
+                    const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+                    const radius = 4.0;
+                    const cylGeo = new THREE.CylinderGeometry(radius, radius, length, 6);
+                    const cylMat = new THREE.MeshBasicMaterial({color: 0x8b0000, transparent: true, opacity: 0.5});
+                    const cyl = new THREE.Mesh(cylGeo, cylMat);
+                    cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+                    cyl.position.copy(mid);
+                    enemyTrailSegments.push(cyl);
+                    scene.add(cyl);
+                }
+            }
+            // Dragon trails: generate trails for both dragons.  Use green colour and
+            // slightly thinner radius.
+            function updateDragonTrail(drag, trailPoints, trailSegments) {
+                trailPoints.push(drag.position.clone());
+                const maxPts = 60;
+                if (trailPoints.length > maxPts) {
+                    trailPoints.shift();
+                    const seg = trailSegments.shift();
+                    if (seg) scene.remove(seg);
+                }
+                if (trailPoints.length > 1) {
+                    const l = trailPoints.length;
+                    const p1 = trailPoints[l - 2];
+                    const p2 = trailPoints[l - 1];
+                    const dir = new THREE.Vector3().subVectors(p2, p1);
+                    const length = dir.length();
+                    if (length > 0.01) {
+                        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+                        const radius = 3.0;
+                        const cylGeo = new THREE.CylinderGeometry(radius, radius, length, 6);
+                        const cylMat = new THREE.MeshBasicMaterial({color: 0x22aa22, transparent: true, opacity: 0.5});
+                        const cyl = new THREE.Mesh(cylGeo, cylMat);
+                        cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+                        cyl.position.copy(mid);
+                        trailSegments.push(cyl);
+                        scene.add(cyl);
+                    }
+                }
+            }
+            updateDragonTrail(dragon, dragonTrailPoints, dragonTrailSegments);
+            updateDragonTrail(dragon2, dragon2TrailPoints, dragon2TrailSegments);
+        }
+
+        function updateCamera() {
+            // Position camera behind player
+            const offset = new THREE.Vector3(0, 3, 10).applyQuaternion(player.quaternion);
+            camera.position.copy(player.position.clone().add(offset));
+            const lookAtPoint = player.position.clone().add(player.velocity.clone().multiplyScalar(4));
+            camera.lookAt(lookAtPoint);
+            // Update HUD
+            if (score > highScore) highScore = score;
+            hud.innerHTML = 'Score: ' + score + '&nbsp;|&nbsp;High: ' + highScore;
+        }
+
+        function endGame() {
+            running = false;
+            overlay.style.visibility = 'visible';
+            gameoverTitle.textContent = 'Game Over';
+            finalScore.textContent = 'Score: ' + score;
+        }
+
+        restartBtn.addEventListener('click', () => {
+            reset();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Allow restarting from the game‑over screen by pressing the spacebar.
+        // Only triggers when the game is not running and the overlay is visible.
+        window.addEventListener('keydown', (e) => {
+            if (!running && (e.key === ' ' || e.code === 'Space')) {
+                reset();
+            }
+        });
+
+        // initialize: start screen visible; do not start game until start button clicked
+        running = false;
+        animate();
+    })();
+
+    </script>
+</body>
+</html>

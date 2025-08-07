@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Moiré Generator with Layers</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      /* Ensure the canvas fills the entire window */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #000;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+    <!-- Load the p5.js library for easy creative coding -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+    <script>
+      /*
+       * Enhanced Moiré effect with multiple layered ring sets and
+       * interactive controls.  Use the number keys (1–9) to add layers,
+       * the arrow keys (or WASD) to change ring spacing and motion, and
+       * C to randomise the colours.  The pattern is drawn into an off
+       * screen buffer at a reduced resolution and scaled to fit the window.
+       */
+
+      let moireBuffer;
+      // Resolution of the off‑screen buffer.  Lower values improve
+      // performance when many layers are enabled; higher values yield
+      // crisper detail.  Adjust this constant as desired.
+      //
+      // The original implementation used a relatively small off‑screen
+      // buffer (220×220), which resulted in a blocky appearance when the
+      // pattern was scaled up to fill the window.  To reveal finer detail
+      // across the entire canvas, increase this value.  A value around
+      // When generating the moiré pattern we render into a square off‑screen
+      // buffer and then scale it up to fill the window.  To maximise
+      // detail, choose a resolution based on the smaller of the current
+      // window dimensions.  This yields a buffer that is as large as the
+      // viewport can handle, producing very crisp patterns.  You can
+      // lower this value if performance suffers.
+      const RES = Math.floor(Math.min(window.innerWidth, window.innerHeight));
+
+      // Global parameters (see keyPressed() for controls):
+      let ringScale = 16;    // Current thickness of the rings in pixels
+      let targetRingScale = ringScale; // Desired ring thickness used for smoothing
+      let numSets = 1;     // Number of individual ring sets (1–9)
+      let fociAmp = 1.0;     // Amplitude of the focal point motion
+      let colorOffset = 0;   // Base hue offset for the colour palette
+      // Flags used to track whether arrow keys are held.  These allow
+      // continuous adjustments rather than requiring repeated key presses.
+      let upHeld = false;
+      let downHeld = false;
+      let leftHeld = false;
+      let rightHeld = false;
+      // Colour locking state.  When hueLocked is true, the dynamic hue
+      // drift is frozen at hueTimeOffset and C toggles this state.
+      let hueLocked = false;
+      let hueTimeOffset = 0;
+      // Controls the speed of the animation.  A value of 1.0 uses real
+      // time; smaller values slow the movement and larger values speed it
+      // up.  Adjust with the N and M keys.
+      let timeScale = 1.0;
+
+      // Variables for a smooth simulation clock.  Instead of scaling the
+      // timestamp directly (which causes jumps when timeScale changes), we
+      // integrate real time with the current timeScale.  simTime stores
+      // accumulated “simulation” seconds; prevFrameRealTime stores the
+      // real time from the previous frame.  Both are initialised in
+      // setup().
+      let simTime = 0;
+      let prevFrameRealTime = 0;
+
+      // Additional flags for holding down other keys.  These enable
+      // continuous adjustments when N/M (speed) or V/B (hue shift) are held.
+      let nHeld = false;
+      let mHeld = false;
+      let vHeld = false;
+      let bHeld = false;
+
+      // Toggle to pin ring set centres in a regular polygon arrangement.  When
+      // true the sets are evenly spaced around the centre; when false
+      // they move dynamically based on sine and cosine.  Use the X key to
+      // toggle this mode on and off.
+      let pinCenters = false;
+
+      // Toggle black & white mode.  When enabled the pattern is drawn
+      // using a four‑level grayscale palette instead of the colourful
+      // hues.  Press Z to toggle this mode.
+      let bwMode = false;
+
+      function setup() {
+        createCanvas(window.innerWidth, window.innerHeight);
+        pixelDensity(1);
+        moireBuffer = createGraphics(RES, RES);
+        moireBuffer.colorMode(RGB, 255);
+        noStroke();
+
+        // Initialise the real time reference for the simulation clock.
+        prevFrameRealTime = millis() / 1000;
+      }
+
+      // Convert HSL values to RGB.  h, s and l are in the range [0,1].
+      function hslToRgb(h, s, l) {
+        let r, g, b;
+        if (s === 0) {
+          r = g = b = l; // Achromatic
+        } else {
+          const hue2rgb = (p, q, t) => {
+            let tt = t;
+            if (tt < 0) tt += 1;
+            if (tt > 1) tt -= 1;
+            if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+            if (tt < 1 / 2) return q;
+            if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+            return p;
+          };
+          const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+          const p = 2 * l - q;
+          r = hue2rgb(p, q, h + 1 / 3);
+          g = hue2rgb(p, q, h);
+          b = hue2rgb(p, q, h - 1 / 3);
+        }
+        return [Math.floor(r * 255), Math.floor(g * 255), Math.floor(b * 255)];
+      }
+
+      // Draw the moiré pattern into the off‑screen buffer.  The number of
+      // layers, ring spacing and focal point amplitude are controlled via
+      // global variables.  A four‑colour palette is generated from the
+      // colourOffset and time t.
+      function drawMoire(buf, t) {
+        const w = buf.width;
+        const h = buf.height;
+        buf.loadPixels();
+        // Precompute focal point positions for each ring set.  Each set uses
+        // slightly different frequencies so that its motion differs from the
+        // others.  Multiplying by fociAmp scales the overall motion.
+        const cxList = new Array(numSets);
+        const cyList = new Array(numSets);
+        if (pinCenters) {
+          // Arrange the ring set centres evenly around a circle.  The radius
+          // scales with fociAmp so you can still control the size via the
+          // arrow keys.  Each set is separated by an equal angle.
+          const radius = Math.min(w, h) / 3 * fociAmp;
+          for (let i = 0; i < numSets; i++) {
+            const angle = (i / numSets) * TWO_PI;
+            cxList[i] = Math.cos(angle) * radius + w / 2;
+            cyList[i] = Math.sin(angle) * radius + h / 2;
+          }
+        } else {
+          // Dynamically compute focal point positions for each set.  Each set
+          // uses slightly different frequencies so that its motion differs
+          // from the others.  Multiplying by fociAmp scales the motion.
+          for (let i = 0; i < numSets; i++) {
+            const fx = 2 + i * 0.3;
+            const fy = 4 + i * 0.4;
+            cxList[i] = Math.sin(t / fx) * (w / 3) * fociAmp + w / 2;
+            cyList[i] = Math.cos(t / fy) * (h / 3) * fociAmp + h / 2;
+          }
+        }
+        // Build a four‑colour palette.  Each hue is separated by 90° around
+        // the colour wheel.  The palette normally drifts over time, but
+        // if hueLocked is enabled we freeze the drift at the time that
+        // the lock was toggled.  colorOffset provides a base shift and can
+        // be modified via the V and B keys.
+        // Build the colour palette.  In normal mode we use a dynamic
+        // four‑colour palette separated by 90° on the hue circle; in black
+        // and white mode we use four levels of gray.  colourTime is used
+        // for hue drift and respects hue locking.
+        let palette;
+        if (bwMode) {
+          palette = [
+            [0, 0, 0],
+            [85, 85, 85],
+            [170, 170, 170],
+            [255, 255, 255]
+          ];
+        } else {
+          const colourTime = hueLocked ? hueTimeOffset : t;
+          const hues = [];
+          for (let i = 0; i < 4; i++) {
+            const base = colorOffset + i * 90;
+            const dynamic = colourTime * (15 + i * 10);
+            hues.push((base + dynamic) % 360);
+          }
+          palette = hues.map(h => hslToRgb((h % 360) / 360, 1, 0.5));
+        }
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            let totalXor = 0;
+            for (let i = 0; i < numSets; i++) {
+              const dx = x - cxList[i];
+              const dy = y - cyList[i];
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              const scaled = Math.floor(dist / ringScale);
+              totalXor ^= scaled;
+            }
+            const val = totalXor & 3;
+            const idx = (y * w + x) * 4;
+            const col = palette[val];
+            buf.pixels[idx] = col[0];
+            buf.pixels[idx + 1] = col[1];
+            buf.pixels[idx + 2] = col[2];
+            buf.pixels[idx + 3] = 255;
+          }
+        }
+        buf.updatePixels();
+      }
+
+      function draw() {
+        // Update the simulation clock.  Measure real time since the last
+        // frame and accumulate it scaled by the current timeScale.  This
+        // ensures that changes to timeScale do not cause the positions to
+        // jump, but instead alter the rate at which simTime advances.
+        const now = millis() / 1000;
+        const dt = now - prevFrameRealTime;
+        prevFrameRealTime = now;
+        simTime += dt * timeScale;
+        const t = simTime;
+        // Adjust target values continuously while arrow keys are held.
+        // Up/Down adjust ring spacing; Left/Right adjust the focal point
+        // amplitude.  Increment the target gradually to create a smooth
+        // response when keys are held down.
+        if (upHeld) {
+          targetRingScale = Math.max(1, targetRingScale - 0.1);
+        }
+        if (downHeld) {
+          targetRingScale = Math.min(40, targetRingScale + 0.1);
+        }
+        if (leftHeld) {
+          fociAmp = Math.max(0.3, fociAmp - 0.02);
+        }
+        if (rightHeld) {
+          fociAmp = Math.min(3.0, fociAmp + 0.02);
+        }
+
+        // Adjust animation speed continuously while N or M are held.  Small
+        // increments per frame provide smooth control.  Clamp the value
+        // within a reasonable range.
+        if (nHeld) {
+          timeScale = Math.max(0.1, timeScale - 0.02);
+        }
+        if (mHeld) {
+          timeScale = Math.min(5.0, timeScale + 0.02);
+        }
+
+        // Adjust hue offset continuously while V or B are held.  Each frame
+        // shifts the palette slightly to the right (V) or left (B).  Wrap
+        // around at 360 degrees.
+        if (vHeld) {
+          colorOffset = (colorOffset + 1) % 360;
+        }
+        if (bHeld) {
+          colorOffset = (colorOffset - 1 + 360) % 360;
+        }
+        // Smoothly interpolate the current ringScale toward its target.  The
+        // smoothing factor controls how quickly the value changes; a
+        // higher factor produces faster transitions.  This prevents abrupt
+        // jumps in the pattern when holding down the arrow keys.
+        ringScale += (targetRingScale - ringScale) * 0.15;
+        // Clamp ringScale to the allowed range to avoid negative or overly
+        // large values if the target value goes out of bounds.
+        ringScale = constrain(ringScale, 1, 40);
+        drawMoire(moireBuffer, t);
+        image(moireBuffer, 0, 0, width, height);
+      }
+
+      function windowResized() {
+        resizeCanvas(window.innerWidth, window.innerHeight);
+      }
+
+      // Handle keyboard input for interactive control.  See comments for each
+      // key.  Number keys 1–9 set the number of layers.  Arrow keys and
+      // WASD adjust ring spacing and motion.  C randomises the colours.
+      function keyPressed() {
+        const k = key.toUpperCase();
+        // Record which arrow keys are currently pressed so that draw() can
+        // apply continuous adjustments.  WASD keys mirror the arrow
+        // controls.  These flags are cleared in keyReleased().
+        if (keyCode === UP_ARROW || k === 'W') upHeld = true;
+        if (keyCode === DOWN_ARROW || k === 'S') downHeld = true;
+        if (keyCode === LEFT_ARROW || k === 'A') leftHeld = true;
+        if (keyCode === RIGHT_ARROW || k === 'D') rightHeld = true;
+
+        // Toggle hue locking.  When locked the dynamic hue drift freezes
+        // at the current time.  Pressing C again unlocks the drift.
+        if (k === 'C') {
+          hueLocked = !hueLocked;
+          if (hueLocked) {
+            // Freeze the hue drift at the current simulation time rather than
+            // real time so that speed adjustments do not cause jumps.
+            hueTimeOffset = simTime;
+          }
+        }
+        // Shift hues and allow continuous shifting when V or B are held.
+        // An initial press rotates the palette by 5°; holding the key
+        // continues to shift the palette each frame via the vHeld/bHeld flags.
+        if (k === 'V') {
+          vHeld = true;
+          colorOffset = (colorOffset + 5) % 360;
+        } else if (k === 'B') {
+          bHeld = true;
+          colorOffset = (colorOffset - 5 + 360) % 360;
+        }
+        // Set the number of layers via the number keys 1–9.  The number
+        // pressed corresponds directly to the number of ring sets.
+        if (k >= '1' && k <= '9') {
+          numSets = parseInt(k, 10);
+        }
+
+        // Adjust animation speed.  N slows the motion down, M speeds it up.
+        if (k === 'N') {
+          nHeld = true;
+          timeScale = Math.max(0.1, timeScale - 0.1);
+        } else if (k === 'M') {
+          mHeld = true;
+          timeScale = Math.min(5.0, timeScale + 0.1);
+        }
+
+        // Toggle symmetric arrangement of ring sets.  When enabled the
+        // centres of the sets are arranged at equal angles around a circle.
+        if (k === 'X') {
+          pinCenters = !pinCenters;
+        }
+
+        // Toggle black and white mode.
+        if (k === 'Z') {
+          bwMode = !bwMode;
+        }
+      }
+
+      // When a key is released, clear the corresponding flag so that
+      // continuous adjustments stop.  Without this the ring spacing or
+      // focal amplitude would continue changing after you let go of the key.
+      function keyReleased() {
+        const k = key.toUpperCase();
+        if (keyCode === UP_ARROW || k === 'W') upHeld = false;
+        if (keyCode === DOWN_ARROW || k === 'S') downHeld = false;
+        if (keyCode === LEFT_ARROW || k === 'A') leftHeld = false;
+        if (keyCode === RIGHT_ARROW || k === 'D') rightHeld = false;
+
+        // Clear continuous adjustment flags for other keys when released.
+        if (k === 'N') nHeld = false;
+        if (k === 'M') mHeld = false;
+        if (k === 'V') vHeld = false;
+        if (k === 'B') bHeld = false;
+      }
+    </script>
+  </head>
+  <body>
+    <!-- p5.js will automatically insert the canvas here -->
+  </body>
+</html>

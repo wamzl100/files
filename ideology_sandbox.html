@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ideology Sandbox</title>
+  <style>
+    body { font-family: sans-serif; }
+    canvas { border: 1px solid #ccc; display: block; margin: 1em 0; }
+  </style>
+</head>
+<body>
+  <h1>Ideology Sandbox</h1>
+  <p>Each dot represents a citizen. Their color shows ideology: blue is progressive (-1), red is conservative (+1).</p>
+  <canvas id="world" width="600" height="600"></canvas>
+  <p>Average ideology: <span id="avg">0</span></p>
+  <script>
+    const canvas = document.getElementById('world');
+    const ctx = canvas.getContext('2d');
+    const avgSpan = document.getElementById('avg');
+
+    const numAgents = 100;
+    const influenceWeight = 0.1;
+    const mediaWeight = 0.05;
+    const mediaSlant = 0; // neutral media
+
+    const agents = [];
+    for (let i = 0; i < numAgents; i++) {
+      agents.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        ideology: Math.random() * 2 - 1
+      });
+    }
+
+    function step() {
+      for (const agent of agents) {
+        const neighbors = agents.filter(a => {
+          const dx = a.x - agent.x;
+          const dy = a.y - agent.y;
+          return a !== agent && dx * dx + dy * dy < 40 * 40;
+        });
+        for (const n of neighbors) {
+          agent.ideology += influenceWeight * (n.ideology - agent.ideology);
+        }
+        agent.ideology += mediaWeight * (mediaSlant - agent.ideology);
+        agent.ideology += Math.random() * 0.02 - 0.01;
+        if (agent.ideology > 1) agent.ideology = 1;
+        if (agent.ideology < -1) agent.ideology = -1;
+      }
+      draw();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let total = 0;
+      for (const agent of agents) {
+        total += agent.ideology;
+        ctx.fillStyle = ideologyColor(agent.ideology);
+        ctx.beginPath();
+        ctx.arc(agent.x, agent.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      avgSpan.textContent = (total / agents.length).toFixed(2);
+    }
+
+    function ideologyColor(value) {
+      const r = Math.round(((value + 1) / 2) * 255);
+      const b = 255 - r;
+      return `rgb(${r}, 0, ${b})`;
+    }
+
+    draw();
+    setInterval(step, 100);
+  </script>
+</body>
+</html>

@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>One-Planet Sociology Simulator — Fork v1</title>
+<style>
+  html,body{margin:0;padding:0;background:#06080c;color:#e6f2ff;height:100%;overflow:hidden;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  #hud{position:fixed;top:12px;left:12px;z-index:10;min-width:320px;background:rgba(10,14,22,.72);backdrop-filter:blur(6px);border:1px solid rgba(128,200,255,.25);border-radius:12px;padding:10px 12px}
+  #hud .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}
+  #hud .pill{border:1px solid rgba(128,200,255,.25);border-radius:999px;padding:4px 8px;font-size:12px}
+  #hud button,.btn{background:#0ea5e9;border:0;color:#04121c;font-weight:700;border-radius:8px;padding:8px 10px;cursor:pointer}
+  #hud button:disabled{opacity:.5;cursor:not-allowed}
+  #side{position:fixed;right:12px;top:12px;bottom:12px;width:380px;z-index:10;background:rgba(10,14,22,.72);backdrop-filter:blur(6px);border:1px solid rgba(128,200,255,.25);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  #list{flex:1;overflow:auto;border:1px dashed rgba(128,200,255,.25);border-radius:10px;padding:8px}
+  .city{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(128,200,255,.12);padding:8px 0}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+  #tooltip{position:fixed;pointer-events:none;z-index:50;background:#0b1320;border:1px solid rgba(128,200,255,.3);padding:6px 8px;border-radius:8px;font-size:12px;display:none}
+  #modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:60}
+  #modal .card{width:min(520px,92vw);background:#0a111c;border:1px solid rgba(128,200,255,.25);border-radius:14px;padding:14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  input[type="range"]{width:100%}
+  .legend{display:flex;gap:8px;align-items:center}
+  .chip{width:14px;height:14px;border-radius:50%}
+  #ticker{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;font-weight:700;background:linear-gradient(180deg, rgba(16,48,69,.9), rgba(8,20,28,.9));border:1px solid rgba(128,200,255,.25);padding:8px 12px;border-radius:999px;z-index:12;display:none;box-shadow:0 10px 30px rgba(0,0,0,.45);transition:opacity .25s ease}
+  canvas{display:block}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="row" style="gap:12px">
+    <span class="pill mono">Day <span id="day">0</span></span>
+    <span class="pill mono">Speed <span id="speedx">1×</span></span>
+    <span class="pill mono">Cities <span id="citycount">0</span></span>
+    <span class="pill mono">World Pop <span id="worldpop">0</span></span>
+  </div>
+  <div class="row" style="gap:8px">
+    <button id="pauseBtn">Pause</button>
+    <button id="stepBtn" title="Advance one tick">Step</button>
+    <button id="speed1">1×</button>
+    <button id="speed2">2×</button>
+    <button id="speed4">4×</button>
+    <button id="addCityMode">Add City</button>
+    <button id="resetBtn" style="background:#ef4444;color:#fff">Reset</button>
+  </div>
+  <div class="row" style="gap:12px">
+    <span class="pill mono">Avg Ideology: <span id="avgIdeo">0|0</span></span>
+    <span class="pill mono">Avg Prosperity: <span id="avgPros">0</span></span>
+    <span class="pill mono">Avg Unrest: <span id="avgUnrest">0</span></span>
+  </div>
+</div>
+
+<div id="side">
+  <div class="legend">
+    <div class="chip" style="background:#ff4d4d"></div><div>Authority</div>
+    <div class="chip" style="background:#4dff88;margin-left:8px"></div><div>Liberty</div>
+    <div class="chip" style="background:#ffd84d;margin-left:8px"></div><div>Collective</div>
+    <div class="chip" style="background:#7da6ff;margin-left:8px"></div><div>Individual</div>
+  </div>
+  <div class="row" style="gap:8px">
+    <label style="flex:1">Policy: Authority↔Liberty
+      <input id="polA" type="range" min="-1" max="1" step="0.01" value="0"/>
+    </label>
+    <label style="flex:1">Policy: Collective↔Individual
+      <input id="polB" type="range" min="-1" max="1" step="0.01" value="0"/>
+    </label>
+  </div>
+  <div class="row mono" style="gap:12px;font-size:12px;opacity:.9">
+    <div>Trade Range: <span id="tradeRangeLabel">4200km</span></div>
+    <input id="tradeRange" type="range" min="1000" max="8000" step="100" value="4200"/>
+  </div>
+  <div class="row" style="gap:8px;align-items:center">
+    <label><input type="checkbox" id="showLinks" checked/> show trade links</label>
+    <label><input type="checkbox" id="autoSpawn" checked/> seed 5 starter cities</label>
+  </div>
+  <div id="list"></div>
+</div>
+
+<div id="ticker" style="display:none"></div>
+<div id="tooltip"></div>
+
+<div id="modal">
+  <div class="card">
+    <h3 style="margin:0 0 6px 0">New City</h3>
+    <div class="mono" id="modalLatLon"></div>
+    <div class="grid" style="margin-top:8px">
+      <label>Name<input id="cityName" placeholder="e.g., New Arcadia"/></label>
+      <label>Population<input id="cityPop" type="number" min="10" max="50000000" step="1000" value="250000"/></label>
+      <label>Authority ↔ Liberty<input id="cityA" type="range" min="-1" max="1" step="0.01" value="0"/></label>
+      <label>Collective ↔ Individual<input id="cityB" type="range" min="-1" max="1" step="0.01" value="0"/></label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button id="cancelCity" class="btn" style="background:#334155;color:#e6f2ff">Cancel</button>
+      <button id="createCity" class="btn">Create</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.min.js"></script>
+<script>
+(() => {
+  // ---------- Config ----------
+  const R = 20; // planet radius (render units)
+  const KM_PER_RAD = 6371; // Earth-like radius in km
+  const MAP_W = 1024, MAP_H = 512; // equirectangular map resolution
+  const OVERLAY_W = 1024, OVERLAY_H = 512; // city/feature overlays
+
+  // ---------- State ----------
+  const cities = []; // {id,name,lat,lon,pop,ideo:{A,B},pros,unrest,mesh,color}
+  let cityIdCounter = 1;
+  let day = 0;
+  let paused = false;
+  let simSpeed = 1; // ticks per frame
+  let addMode = false;
+  let policy = {A:0, B:0};
+  let tradeRangeKm = 4200;
+  let worldSeed = 1337; // can be changed via UI
+  let overlayDirty = true; // trigger redraw of city overlay
+  let selfSpin = 0.0006; // globe auto-rotation speed
+
+  // ---------- THREE setup ----------
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x02060c);
+  const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 4000);
+  camera.position.set(0, 0, 70);
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // Lights (sunlight + gentle fill)
+  const hemi = new THREE.HemisphereLight(0xaad8ff, 0x0b0f16, 0.7);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+  sun.position.set(80, 50, 30);
+  scene.add(sun);
+
+  // Root globe group so cities/links rotate with terrain
+  const globe = new THREE.Group();
+  scene.add(globe);
+
+  // ---------- Procedural textures (canvases) ----------
+  // Base world map (continents, biomes, oceans)
+  const worldCanvas = document.createElement('canvas');
+  worldCanvas.width = MAP_W; worldCanvas.height = MAP_H;
+  const worldCtx = worldCanvas.getContext('2d');
+  const worldTex = new THREE.CanvasTexture(worldCanvas); worldTex.colorSpace = THREE.SRGBColorSpace;
+  // Height/bump map (grayscale)
+  const bumpCanvas = document.createElement('canvas'); bumpCanvas.width = MAP_W; bumpCanvas.height = MAP_H;
+  const bumpCtx = bumpCanvas.getContext('2d');
+  const bumpTex = new THREE.CanvasTexture(bumpCanvas);
+  // Normal map derived from bump
+  const normalCanvas = document.createElement('canvas'); normalCanvas.width = MAP_W; normalCanvas.height = MAP_H;
+  const normalCtx = normalCanvas.getContext('2d');
+  const normalTex = new THREE.CanvasTexture(normalCanvas);
+  normalTex.colorSpace = THREE.LinearSRGBColorSpace;
+
+  // Archaeological / tectonic features overlay
+  const featureCanvas = document.createElement('canvas'); featureCanvas.width = OVERLAY_W; featureCanvas.height = OVERLAY_H;
+  const featureCtx = featureCanvas.getContext('2d');
+  const featureTex = new THREE.CanvasTexture(featureCanvas); featureTex.transparent = true; featureTex.needsUpdate = true; featureTex.colorSpace = THREE.SRGBColorSpace;
+  // Dynamic city influence overlay
+  const cityCanvas = document.createElement('canvas'); cityCanvas.width = OVERLAY_W; cityCanvas.height = OVERLAY_H;
+  const cityCtx = cityCanvas.getContext('2d');
+  const cityTex = new THREE.CanvasTexture(cityCanvas); cityTex.transparent = true; cityTex.needsUpdate = true; cityTex.colorSpace = THREE.SRGBColorSpace;
+
+  // ---------- Planet & overlays ----------
+  const planetMat = new THREE.MeshStandardMaterial({
+    map: worldTex,
+    bumpMap: bumpTex,
+    bumpScale: 1.1,
+    normalMap: normalTex,
+    normalScale: new THREE.Vector2(0.8, 0.8),
+    metalness: 0.1,
+    roughness: 0.9
+  });
+  const planet = new THREE.Mesh(new THREE.SphereGeometry(R, 128, 128), planetMat);
+  globe.add(planet);
+
+  // Transparent city territories overlay (slightly above surface)
+  const cityOverlayMat = new THREE.MeshBasicMaterial({map: cityTex, transparent:true, opacity:0.9});
+  const cityOverlay = new THREE.Mesh(new THREE.SphereGeometry(R*1.001, 128, 128), cityOverlayMat);
+  globe.add(cityOverlay);
+
+  // Transparent archaeological/tectonic overlay
+  const featureOverlayMat = new THREE.MeshBasicMaterial({map: featureTex, transparent:true, opacity:0.25});
+  const featureOverlay = new THREE.Mesh(new THREE.SphereGeometry(R*1.002, 128, 128), featureOverlayMat);
+  globe.add(featureOverlay);
+
+  // Subtle atmosphere glow (moves with globe to avoid drift)
+  const atmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(R*1.04, 64, 64),
+    new THREE.MeshBasicMaterial({color:0x5dd5ff, transparent:true, opacity:0.06})
+  );
+  globe.add(atmosphere);
+
+  // Trade links group (child of globe)
+  const linkGroup = new THREE.Group();
+  globe.add(linkGroup);
+
+  // ---------- Moon ----------
+  const moonCanvas = document.createElement('canvas'); moonCanvas.width = 512; moonCanvas.height = 256; const moonCtx = moonCanvas.getContext('2d');
+  const moonTex = new THREE.CanvasTexture(moonCanvas); moonTex.colorSpace = THREE.SRGBColorSpace;
+  generateMoonTexture(moonCtx, 512, 256, 42);
+  moonTex.needsUpdate = true;
+  const moon = new THREE.Mesh(
+    new THREE.SphereGeometry(R*0.27, 72, 72),
+    new THREE.MeshPhongMaterial({map: moonTex, bumpMap: moonTex, bumpScale: 0.4, shininess: 2})
+  );
+  const moonOrbit = new THREE.Object3D(); scene.add(moonOrbit); moonOrbit.add(moon);
+  let moonAngle = 0; const moonDist = R*6.5; moon.position.set(moonDist,0,0);
+
+  // ---------- HUD refs ----------
+  const hud = {
+    day: document.getElementById('day'),
+    speedx: document.getElementById('speedx'),
+    citycount: document.getElementById('citycount'),
+    worldpop: document.getElementById('worldpop'),
+    avgIdeo: document.getElementById('avgIdeo'),
+    avgPros: document.getElementById('avgPros'),
+    avgUnrest: document.getElementById('avgUnrest'),
+  };
+
+  // ---------- Math helpers ----------
+  function llToVec3(lat, lon, r=R){
+    const la = THREE.MathUtils.degToRad(lat);
+    const lo = THREE.MathUtils.degToRad(lon);
+    const x = r * Math.cos(la) * Math.cos(lo);
+    const y = r * Math.sin(la);
+    const z = r * Math.cos(la) * Math.sin(lo);
+    return new THREE.Vector3(x,y,z);
+  }
+  function kmDistance(lat1,lon1,lat2,lon2){
+    const la1 = THREE.MathUtils.degToRad(lat1), lo1 = THREE.MathUtils.degToRad(lon1);
+    const la2 = THREE.MathUtils.degToRad(lat2), lo2 = THREE.MathUtils.degToRad(lon2);
+    const d = 2 * Math.asin(Math.sqrt(
+      Math.sin((la2-la1)/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin((lo2-lo1)/2)**2
+    ));
+    return d * KM_PER_RAD;
+  }
+  function ideologyToColor(A,B){
+    const angle = Math.atan2(B, A);
+    const hue = (THREE.MathUtils.radToDeg(angle)+360)%360;
+    const radius = Math.min(1, Math.hypot(A,B));
+    const sat = 60 + radius*40;
+    const light = 55;
+    const c = new THREE.Color(); c.setHSL(hue/360, sat/100, light/100); return c;
+  }
+  function colorToCss(c, alpha=1){
+    const r = Math.round(c.r*255), g=Math.round(c.g*255), b=Math.round(c.b*255);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  function fmt(n){ return n.toLocaleString(undefined,{maximumFractionDigits:0}); }
+
+  // ---------- Tiny value-noise & fbm (seeded) ----------
+  function hash32(x, y, seed){
+    let n = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ seed;
+    n = (n ^ (n>>>13));
+    n = Math.imul(n, 1274126177);
+    return ((n ^ (n>>>16)) >>> 0) / 4294967295;
+  }
+  function vnoise(x, y, seed){
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const u = xf*xf*(3-2*xf), v = yf*yf*(3-2*yf);
+    const s00 = hash32(xi, yi, seed), s10 = hash32(xi+1, yi, seed);
+    const s01 = hash32(xi, yi+1, seed), s11 = hash32(xi+1, yi+1, seed);
+    const a = s00 + u*(s10 - s00);
+    const b = s01 + u*(s11 - s01);
+    return a + v*(b - a);
+  }
+  function fbm(x, y, seed){
+    let sum=0, amp=0.5, freq=1;
+    for(let i=0;i<6;i++){
+      sum += amp * vnoise(x*freq, y*freq, seed + i*1013);
+      amp *= 0.5; freq *= 2.02;
+    }
+    return sum;
+  }
+  function ridged(x,y,seed){
+    const n = fbm(x,y,seed);
+    return 1 - Math.abs(2*n - 1); // peaks as ridges
+  }
+
+  // ---------- World generation ----------
+  function generateWorld(seed=1337){
+    // Heightfield: continents via fbm, mountains via ridged noise
+    const img = worldCtx.createImageData(MAP_W, MAP_H);
+    const bump = bumpCtx.createImageData(MAP_W, MAP_H);
+    for(let y=0;y<MAP_H;y++){
+      const v = y/(MAP_H-1); // 0..1
+      const lat = (v*180 - 90) * Math.PI/180;
+      for(let x=0;x<MAP_W;x++){
+        const u = x/(MAP_W-1); // 0..1
+        const nx = Math.cos(lat)*Math.cos(u*2*Math.PI);
+        const ny = Math.sin(lat);
+        const nz = Math.cos(lat)*Math.sin(u*2*Math.PI);
+        const s = 0.85*fbm(nx*1.8+2, ny*1.8-1.3, seed) + 0.15*fbm(nz*2.5-0.5, nx*2.5+0.7, seed+999);
+        const m = ridged(nx*3.2, nz*3.2, seed+444); // mountains
+        let h = s*1.2 - 0.58; // base elevation
+        const ice = Math.max(0, Math.abs(ny) - 0.62); h += -0.12*ice; // polar depression for ice caps
+        const mountains = Math.max(0, (h+0.05)) * m * 0.55;
+        let elev = h + mountains;
+        const moist = fbm(nx*2.1+5, nz*2.1-3, seed+2025);
+
+        // color ramp
+        let r=0,g=0,b=0;
+        if(elev < 0){ // ocean
+          const d = Math.max(-1, Math.min(0, elev))/ -0.6; // 0..1
+          r = 10 + 20*d; g = 38 + 80*d; b = 64 + 70*d;
+        } else {
+          const e = Math.min(1, elev*1.6);
+          if(e > 0.85){ r=230; g=234; b=238; }
+          else if(e > 0.6){ r=149; g=118; b=88; }
+          else if(e > 0.35){ r = 70 + moist*40; g = 120 + moist*70; b = 60 + moist*30; }
+          else { const desert = Math.max(0, 0.5 - moist) * 1.3; r = 180 + desert*50; g = 170 + desert*25; b = 120 - desert*20; }
+          const shore = Math.max(0, Math.min(1, elev*8));
+          r = r*(0.8+0.2*shore) + 205*(1-shore)*0.08;
+          g = g*(0.82+0.18*shore) + 190*(1-shore)*0.08;
+          b = b*(0.84+0.16*shore) + 160*(1-shore)*0.08;
+          const iceTint = Math.max(0, Math.abs(ny) - 0.7)*1.8;
+          r = r*(1-iceTint) + 230*iceTint; g = g*(1-iceTint) + 238*iceTint; b = b*(1-iceTint) + 246*iceTint;
+        }
+        const idx = (y*MAP_W + x)*4;
+        img.data[idx] = r; img.data[idx+1] = g; img.data[idx+2] = b; img.data[idx+3] = 255;
+        const gray = Math.max(0, Math.min(255, Math.floor((elev+0.6)*170)));
+        bump.data[idx] = gray; bump.data[idx+1] = gray; bump.data[idx+2] = gray; bump.data[idx+3] = 255;
+      }
+    }
+    worldCtx.putImageData(img, 0, 0); worldTex.needsUpdate = true;
+    bumpCtx.putImageData(bump, 0, 0); bumpTex.needsUpdate = true;
+
+    // Build normal map from bump for crisper topography
+    generateNormalFromBump(1.6);
+
+    // Draw archaeological/tectonic layer
+    drawArchaeology(seed);
+  }
+
+  function generateNormalFromBump(strength){
+    const src = bumpCtx.getImageData(0,0,MAP_W,MAP_H).data;
+    const dst = normalCtx.createImageData(MAP_W, MAP_H);
+    for(let y=0;y<MAP_H;y++){
+      for(let x=0;x<MAP_W;x++){
+        const idx = (y*MAP_W+x)*4;
+        const hL = src[(y*MAP_W + Math.max(0,x-1))*4] / 255;
+        const hR = src[(y*MAP_W + Math.min(MAP_W-1,x+1))*4] / 255;
+        const hU = src[(Math.max(0,y-1)*MAP_W + x)*4] / 255;
+        const hD = src[(Math.min(MAP_H-1,y+1)*MAP_W + x)*4] / 255;
+        const dx = (hR - hL) * strength;
+        const dy = (hD - hU) * strength;
+        const nz = 1.0;
+        let nx = -dx, ny = -dy; // invert so lighting matches
+        const invLen = 1/Math.hypot(nx, ny, nz);
+        nx*=invLen; ny*=invLen; const nzz = nz*invLen;
+        dst.data[idx]   = Math.round((nx*0.5+0.5)*255);
+        dst.data[idx+1] = Math.round((ny*0.5+0.5)*255);
+        dst.data[idx+2] = Math.round((nzz*0.5+0.5)*255);
+        dst.data[idx+3] = 255;
+      }
+    }
+    normalCtx.putImageData(dst,0,0); normalTex.needsUpdate = true;
+  }
+
+  function drawArchaeology(seed){
+    featureCtx.clearRect(0,0,OVERLAY_W,OVERLAY_H);
+    featureCtx.globalAlpha = 0.22;
+    featureCtx.strokeStyle = 'rgba(255,210,160,0.25)';
+    for(let i=0;i<140;i++){
+      const lat = (Math.random()*180 - 90);
+      const lon = (Math.random()*360 - 180);
+      const x = (lon+180)/360*OVERLAY_W; const y=(lat+90)/180*OVERLAY_H;
+      featureCtx.beginPath();
+      const len = 60 + Math.random()*280;
+      featureCtx.moveTo(x,y);
+      const dir = Math.random()*Math.PI*2;
+      for(let t=0;t<len;t+=8){
+        const ang = dir + (vnoise((x+t*Math.cos(dir))*0.01,(y+t*Math.sin(dir))*0.01, seed+777)-0.5)*1.8;
+        const nx = x + t*Math.cos(ang); const ny = y + t*Math.sin(ang);
+        featureCtx.lineTo(nx,ny);
+      }
+      featureCtx.stroke();
+    }
+    featureCtx.globalAlpha = 0.18;
+    featureCtx.strokeStyle = 'rgba(240,180,120,0.35)';
+    for(let k=0;k<45;k++){
+      const lat = (Math.random()<0.5? (10+Math.random()*20): -(10+Math.random()*20));
+      const lon = (Math.random()*360 - 180);
+      const cx = (lon+180)/360*OVERLAY_W; const cy=(lat+90)/180*OVERLAY_H;
+      featureCtx.beginPath();
+      const size = 10 + Math.random()*26;
+      for(let a=0;a<Math.PI*2; a+=Math.PI/24){
+        const r = size*(0.7 + 0.3*Math.sin(a*5 + k));
+        const x = cx + Math.cos(a)*r*1.6;
+        const y = cy + Math.sin(a)*r;
+        if(a===0) featureCtx.moveTo(x,y); else featureCtx.lineTo(x,y);
+      }
+      featureCtx.closePath(); featureCtx.stroke();
+    }
+    featureTex.needsUpdate = true;
+  }
+
+  // ---------- City overlay (territories that grow/shrink) ----------
+  let cityInfluenceScale = 0.55; // controls territory radius scaling
+  function kmRadiusForCity(c){ return 150 + cityInfluenceScale* Math.cbrt(Math.max(1,c.pop)); }
+  function drawCityOverlay(){
+    cityCtx.clearRect(0,0,OVERLAY_W,OVERLAY_H);
+    cityCtx.globalCompositeOperation = 'source-over';
+    // glow fills
+    for(const c of cities){
+      const cx = (c.lon+180)/360*OVERLAY_W; const cy = (c.lat+90)/180*OVERLAY_H;
+      const latRad = THREE.MathUtils.degToRad(c.lat);
+      const rkm = kmRadiusForCity(c);
+      const rY = (rkm/180)*OVERLAY_H/ (KM_PER_RAD/Math.PI);
+      const rX = rY / Math.max(0.2, Math.cos(latRad));
+      const grd = cityCtx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rX,rY));
+      const ideoc = ideologyToColor(c.ideo.A, c.ideo.B);
+      grd.addColorStop(0, colorToCss(ideoc, 0.26));
+      grd.addColorStop(0.65, colorToCss(ideoc, 0.14));
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      cityCtx.fillStyle = grd;
+      cityCtx.save(); cityCtx.translate(cx, cy); cityCtx.scale(rX, rY); cityCtx.beginPath(); cityCtx.arc(0, 0, 1, 0, Math.PI*2); cityCtx.restore(); cityCtx.fill();
+    }
+    // colored border highlight per city
+    cityCtx.globalCompositeOperation = 'lighter';
+    for(const c of cities){
+      const cx = (c.lon+180)/360*OVERLAY_W; const cy = (c.lat+90)/180*OVERLAY_H;
+      const latRad = THREE.MathUtils.degToRad(c.lat);
+      const rkm = kmRadiusForCity(c);
+      const rY = (rkm/180)*OVERLAY_H/ (KM_PER_RAD/Math.PI);
+      const rX = rY / Math.max(0.2, Math.cos(latRad));
+      const ideoc = ideologyToColor(c.ideo.A, c.ideo.B);
+      cityCtx.save(); cityCtx.translate(cx, cy); cityCtx.scale(rX, rY);
+      cityCtx.lineWidth = 2.0; cityCtx.strokeStyle = colorToCss(ideoc, 0.5);
+      cityCtx.beginPath(); cityCtx.arc(0,0,1,0,Math.PI*2); cityCtx.stroke();
+      cityCtx.lineWidth = 0.8; cityCtx.strokeStyle = 'rgba(255,255,255,0.07)';
+      cityCtx.beginPath(); cityCtx.arc(0,0,1.03,0,Math.PI*2); cityCtx.stroke();
+      cityCtx.restore();
+    }
+    cityTex.needsUpdate = true;
+  }
+
+  // ---------- City creation & UI list ----------
+  const listEl = document.getElementById('list');
+  function renderList(){
+    listEl.innerHTML = '';
+    for(const c of cities){
+      const row = document.createElement('div');
+      row.className = 'city';
+      const left = document.createElement('div');
+      left.innerHTML = `<div style="font-weight:700">${c.name}</div>
+        <div class="mono" style="font-size:12px;opacity:.85">pop ${fmt(c.pop)} · pros ${c.pros.toFixed(1)} · unrest ${c.unrest.toFixed(1)}</div>`;
+      const right = document.createElement('div');
+      right.className='mono'; right.style.display='flex'; right.style.gap='6px'; right.style.alignItems='center';
+      const colorDot = document.createElement('div'); colorDot.className='chip'; colorDot.style.background = '#'+c.color.getHexString();
+      const inspect = document.createElement('button'); inspect.textContent='Inspect'; inspect.className='btn'; inspect.style.background='#1f9cf0'; inspect.onclick=()=>focusCity(c);
+      right.appendChild(colorDot); right.appendChild(inspect);
+      row.appendChild(left); row.appendChild(right);
+      listEl.appendChild(row);
+    }
+  }
+  function addCity({name,lat,lon,pop, A, B}){
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 16, 12),
+      new THREE.MeshStandardMaterial({emissive:0x111111,emissiveIntensity:1,roughness:.4,metalness:.1})
+    );
+    const pos = llToVec3(lat,lon,R+0.3);
+    mesh.position.copy(pos); mesh.lookAt(pos.clone().multiplyScalar(1.05));
+    const city = {id:cityIdCounter++, name, lat, lon, pop:Math.max(10, +pop||100000), ideo:{A:+A||0,B:+B||0}, pros:50, unrest:10, mesh, color:new THREE.Color() };
+    city.color.copy(ideologyToColor(city.ideo.A, city.ideo.B));
+    mesh.material.color.copy(city.color); mesh.material.emissive.copy(city.color);
+    globe.add(mesh); cities.push(city);
+    overlayDirty = true; updateHud();
+  }
+  function focusCity(c){
+    const target = llToVec3(c.lat,c.lon,R+10); cameraTarget.copy(target); targetDistance = 40;
+    pushNews(`${c.name}: pop ${fmt(c.pop)} · pros ${c.pros.toFixed(1)} · unrest ${c.unrest.toFixed(1)}`);
+  }
+
+  // ---------- Trade links drawing ----------
+  const linkMat = new THREE.LineBasicMaterial({color:0x60b8ff, transparent:true, opacity:0.35});
+  function drawLinks(){
+    linkGroup.clear(); if(!document.getElementById('showLinks').checked) return;
+    for(let i=0;i<cities.length;i++){
+      for(let j=i+1;j<cities.length;j++){
+        const a=cities[i], b=cities[j];
+        const d=kmDistance(a.lat,a.lon,b.lat,b.lon);
+        if(d<=tradeRangeKm){
+          const g=new THREE.BufferGeometry();
+          const A=llToVec3(a.lat,a.lon,R+0.2); const B=llToVec3(b.lat,b.lon,R+0.2);
+          const segments=16; const pts=new Float32Array((segments+1)*3);
+          for(let k=0;k<=segments;k++){
+            const t=k/segments;
+            const v=A.clone().normalize().lerp(B.clone().normalize(), t).normalize().multiplyScalar(R+0.4+Math.sin(Math.PI*t)*2.5);
+            pts[k*3]=v.x;pts[k*3+1]=v.y;pts[k*3+2]=v.z;
+          }
+          g.setAttribute('position', new THREE.BufferAttribute(pts,3));
+          const line=new THREE.Line(g, linkMat); linkGroup.add(line);
+        }
+      }
+    }
+  }
+
+  // ---------- News ticker ----------
+  const tickerEl = document.getElementById('ticker');
+  const newsQueue = [];
+  let currentNews = null; let newsTimer = 0;
+  function pushNews(msg){ newsQueue.push(msg); }
+  function updateTicker(){
+    if(!currentNews && newsQueue.length>0){
+      currentNews = newsQueue.shift();
+      tickerEl.textContent = currentNews;
+      tickerEl.style.display = 'inline-flex';
+      tickerEl.style.opacity = '1';
+      newsTimer = 240; // ~4s at 60fps
+    } else if(currentNews){
+      newsTimer--;
+      if(newsTimer<=0){
+        tickerEl.style.opacity = '0';
+        currentNews = null;
+        setTimeout(()=>{ if(!currentNews && newsQueue.length===0) tickerEl.style.display='none'; }, 250);
+      }
+    }
+  }
+
+  // ---------- Simulation ----------
+  function tickOnce(){
+    day++;
+    // Policy drift & diffusion
+    for(const c of cities){
+      c.ideo.A += 0.002 * (policy.A - c.ideo.A);
+      c.ideo.B += 0.002 * (policy.B - c.ideo.B);
+    }
+    // pairwise diffusion by trade proximity
+    for(let i=0;i<cities.length;i++){
+      for(let j=i+1;j<cities.length;j++){
+        const a=cities[i], b=cities[j];
+        const d=kmDistance(a.lat,a.lon,b.lat,b.lon);
+        if(d<=tradeRangeKm){
+          const w = 0.0008 * (1 - d/tradeRangeKm) * (Math.log10(a.pop+1)+Math.log10(b.pop+1));
+          const dA = (b.ideo.A - a.ideo.A)*w;
+          const dB = (b.ideo.B - a.ideo.B)*w;
+          a.ideo.A += dA; b.ideo.A -= dA;
+          a.ideo.B += dB; b.ideo.B -= dB;
+        }
+      }
+    }
+    // prosperity/unrest/pop dynamics
+    for(const c of cities){
+      const mismatch = Math.hypot(c.ideo.A - policy.A, c.ideo.B - policy.B);
+      c.unrest += (mismatch*3 - 0.8);
+      c.unrest = Math.max(0, Math.min(100, c.unrest + (Math.random()-0.5)*0.5));
+      let links=0; for(const dCity of cities){ if(dCity!==c && kmDistance(c.lat,c.lon,dCity.lat,dCity.lon)<=tradeRangeKm) links++; }
+      c.pros += 0.2*links - 0.15*c.unrest/10 - 0.1;
+      c.pros = Math.max(0, Math.min(100, c.pros));
+      const growth = (c.pros/100 - c.unrest/150) * 0.004;
+      const prevPop = c.pop;
+      c.pop = Math.max(10, Math.floor(c.pop * (1 + growth)));
+      c.color.copy(ideologyToColor(c.ideo.A, c.ideo.B));
+      c.mesh.material.color.copy(c.color); c.mesh.material.emissive.copy(c.color);
+      if(c.unrest>70 && Math.random()<0.02){
+        if(Math.random()<0.5){ c.ideo.A = (c.ideo.A - policy.A)*-0.6 + policy.A; c.ideo.B = (c.ideo.B - policy.B)*-0.6 + policy.B; pushNews(`${c.name}: political shock`); }
+        else { c.pros *= 0.85; pushNews(`${c.name}: strike slows economy`); }
+      }
+      if(Math.abs(c.pop - prevPop) > prevPop*0.02){ overlayDirty = true; }
+    }
+    drawLinks();
+    if(day%8===0 || overlayDirty){ drawCityOverlay(); overlayDirty=false; }
+
+    // periodic digest
+    if(day%60===0 && cities.length){
+      const leader = [...cities].sort((a,b)=>b.pros-a.pros)[0];
+      pushNews(`Day ${day}: ${leader.name} leads prosperity at ${leader.pros.toFixed(0)}.`);
+    }
+
+    updateHud();
+  }
+
+  // ---------- Controls (custom orbit) ----------
+  let isDragging=false, lastX=0,lastY=0; let rotX=0, rotY=0; let panX=0, panY=0; let dist=70; 
+  const cameraTarget=new THREE.Vector3(0,0,0); let targetDistance=dist;
+  function updateCamera(){
+    dist += (targetDistance - dist)*0.1;
+    const cx = Math.cos(rotX), sx = Math.sin(rotX), cy=Math.cos(rotY), sy=Math.sin(rotY);
+    const p = new THREE.Vector3(
+      dist*cx*cy + panX,
+      dist*sy + panY,
+      dist*sx*cy
+    );
+    camera.position.copy(p);
+    camera.lookAt(cameraTarget.x+panX, cameraTarget.y+panY, cameraTarget.z);
+  }
+  window.addEventListener('mousedown', (e)=>{ isDragging=true; lastX=e.clientX; lastY=e.clientY; });
+  window.addEventListener('mouseup', ()=>{ isDragging=false; });
+  window.addEventListener('mousemove', (e)=>{
+    if(!isDragging) return;
+    const dx=(e.clientX-lastX)/innerWidth, dy=(e.clientY-lastY)/innerHeight;
+    if(e.shiftKey){ panX -= dx*dist*0.8; panY += dy*dist*0.8; }
+    else { rotX += dx*2*Math.PI; rotY = Math.max(-Math.PI/2+0.01, Math.min(Math.PI/2-0.01, rotY + dy*Math.PI)); }
+    lastX=e.clientX; lastY=e.clientY;
+  });
+  window.addEventListener('wheel', (e)=>{ targetDistance = Math.max(15, Math.min(200, targetDistance + (e.deltaY>0?5:-5))); });
+
+  // ---------- Add City by clicking globe ----------
+  const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
+  function onClickAddCity(ev){
+    if(!addMode) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((ev.clientX-rect.left)/rect.width)*2-1; mouse.y = -((ev.clientY-rect.top)/rect.height)*2+1;
+    raycaster.setFromCamera(mouse, camera);
+    const hit = raycaster.intersectObject(planet)[0];
+    if(hit){
+      const p = hit.point.clone().normalize();
+      const lat = THREE.MathUtils.radToDeg(Math.asin(p.y));
+      const lon = THREE.MathUtils.radToDeg(Math.atan2(p.z, p.x));
+      openCityModal(lat,lon);
+    }
+  }
+  renderer.domElement.addEventListener('click', onClickAddCity);
+
+  // ---------- Tooltip (lat/lon under cursor) ----------
+  const tooltip = document.getElementById('tooltip');
+  renderer.domElement.addEventListener('mousemove', (ev)=>{
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((ev.clientX-rect.left)/rect.width)*2-1; mouse.y = -((ev.clientY-rect.top)/rect.height)*2+1;
+    raycaster.setFromCamera(mouse, camera);
+    const hit = raycaster.intersectObject(planet)[0];
+    if(hit){
+      const p = hit.point.clone().normalize();
+      const lat = THREE.MathUtils.radToDeg(Math.asin(p.y));
+      const lon = THREE.MathUtils.radToDeg(Math.atan2(p.z, p.x));
+      tooltip.style.display='block';
+      tooltip.style.left=(ev.clientX+14)+'px'; tooltip.style.top=(ev.clientY+14)+'px';
+      tooltip.textContent=`${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+    } else { tooltip.style.display='none'; }
+  });
+
+  // ---------- Modal ----------
+  const modal = document.getElementById('modal');
+  const modalLatLon = document.getElementById('modalLatLon');
+  const cityName = document.getElementById('cityName');
+  const cityPop = document.getElementById('cityPop');
+  const cityA = document.getElementById('cityA');
+  const cityB = document.getElementById('cityB');
+  const cancelCity = document.getElementById('cancelCity');
+  const createCity = document.getElementById('createCity');
+  let pendingLL = null;
+  function openCityModal(lat,lon){
+    pendingLL = {lat,lon};
+    cityName.value=''; cityPop.value=250000; cityA.value=0; cityB.value=0;
+    modalLatLon.textContent = `${lat.toFixed(3)}°, ${lon.toFixed(3)}°`;
+    modal.style.display='flex';
+  }
+  cancelCity.onclick = ()=>{ modal.style.display='none'; };
+  createCity.onclick = ()=>{
+    if(!pendingLL) return;
+    addCity({name: cityName.value||`City ${cityIdCounter}`, lat: pendingLL.lat, lon: pendingLL.lon, pop: +cityPop.value||250000, A:+cityA.value, B:+cityB.value});
+    modal.style.display='none'; drawLinks(); overlayDirty = true; pushNews(`Founded ${cityName.value||`City ${cityIdCounter-1}`}`);
+  };
+
+  // ---------- Controls UI ----------
+  const pauseBtn = document.getElementById('pauseBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const speed1 = document.getElementById('speed1');
+  const speed2 = document.getElementById('speed2');
+  const speed4 = document.getElementById('speed4');
+  const addCityModeBtn = document.getElementById('addCityMode');
+  const resetBtn = document.getElementById('resetBtn');
+  const polA = document.getElementById('polA');
+  const polB = document.getElementById('polB');
+  const tradeRange = document.getElementById('tradeRange');
+  const tradeRangeLabel = document.getElementById('tradeRangeLabel');
+
+  pauseBtn.onclick = ()=>{ paused=!paused; pauseBtn.textContent = paused? 'Resume':'Pause'; };
+  stepBtn.onclick = ()=>{ if(paused){ tickOnce(); } };
+  speed1.onclick = ()=>{ simSpeed=1; updateHud(); };
+  speed2.onclick = ()=>{ simSpeed=2; updateHud(); };
+  speed4.onclick = ()=>{ simSpeed=4; updateHud(); };
+  addCityModeBtn.onclick = ()=>{ addMode = !addMode; addCityModeBtn.textContent = addMode? 'Adding… (click globe)':'Add City'; };
+  resetBtn.onclick = ()=>{ for(const c of cities){ globe.remove(c.mesh); } cities.length=0; day=0; drawLinks(); updateHud(); overlayDirty=true; if(document.getElementById('autoSpawn').checked) seedStarter(); pushNews('World reset'); };
+  polA.oninput = ()=>{ policy.A = +polA.value; pushNews(`Policy shift (Authority↔Liberty): ${policy.A.toFixed(2)}`); };
+  polB.oninput = ()=>{ policy.B = +polB.value; pushNews(`Policy shift (Collective↔Individual): ${policy.B.toFixed(2)}`); };
+  tradeRange.oninput = ()=>{ tradeRangeKm = +tradeRange.value; drawLinks(); updateHud(); pushNews(`Trade range: ${Math.round(tradeRangeKm)} km`); };
+  window.addEventListener('keydown',(e)=>{ if(e.code==='Space'){ paused=!paused; pauseBtn.textContent = paused? 'Resume':'Pause'; e.preventDefault(); }});
+
+  // Inject WorldGen controls into side panel
+  const side = document.getElementById('side');
+  const worldBox = document.createElement('div');
+  worldBox.innerHTML = `
+    <div class=\"row\" style=\"gap:8px;align-items:center;margin-top:6px\">
+      <span class=\"pill mono\">World Gen</span>
+      <label class=\"mono\" style=\"display:flex;align-items:center;gap:6px\">Seed <input id=\"seedInput\" type=\"number\" value=\"1337\" style=\"width:100px\"></label>
+      <button id=\"regenBtn\" class=\"btn\">Regenerate</button>
+    </div>
+    <div class=\"row\" style=\"gap:12px;align-items:center\">
+      <label><input type=\"checkbox\" id=\"toggleFeatures\" checked> features</label>
+      <label><input type=\"checkbox\" id=\"toggleCityOverlay\" checked> territories</label>
+      <label class=\"mono\">Influence <input id=\"influenceRange\" type=\"range\" min=\"0.2\" max=\"1.2\" step=\"0.01\" value=\"0.55\"></label>
+    </div>`;
+  side.appendChild(worldBox);
+  document.getElementById('regenBtn').onclick = ()=>{ worldSeed = +document.getElementById('seedInput').value||1337; generateWorld(worldSeed); pushNews(`Regenerated world (seed ${worldSeed})`); };
+  document.getElementById('toggleFeatures').onchange = (e)=>{ featureOverlay.visible = e.target.checked; };
+  document.getElementById('toggleCityOverlay').onchange = (e)=>{ cityOverlay.visible = e.target.checked; };
+  document.getElementById('influenceRange').oninput = (e)=>{ cityInfluenceScale = +e.target.value; overlayDirty = true; };
+
+  // ---------- Starter seed ----------
+  function seedStarter(){
+    const seeds = [
+      {name:'Northport', lat: 50, lon: -10, pop: 800000, A:-0.2, B:-0.4},
+      {name:'Equatoria', lat:  0, lon:  20, pop: 1200000, A: 0.1, B: 0.2},
+      {name:'Sunvale',   lat:-15, lon: 120, pop: 600000,  A:-0.5, B: 0.4},
+      {name:'Icelake',   lat: 70, lon: 100, pop: 300000,  A: 0.6, B:-0.2},
+      {name:'Red Dune',  lat:-35, lon: -60, pop: 450000,  A: 0.2, B: 0.7},
+    ];
+    for(const s of seeds) addCity(s);
+    drawLinks(); overlayDirty = true; pushNews('Seeded 5 cities');
+  }
+
+  // ---------- Moon texture generator ----------
+  function generateMoonTexture(ctx, w, h, seed){
+    const img = ctx.createImageData(w, h);
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const n = fbm(x*0.03, y*0.03, seed) * 0.9 + fbm(x*0.12, y*0.12, seed+123)*0.1;
+        const cr = ridged(x*0.18, y*0.18, seed+777);
+        let g = Math.floor(160 + n*60 - cr*35); g = Math.max(90, Math.min(230, g));
+        const idx=(y*w+x)*4; img.data[idx]=g; img.data[idx+1]=g; img.data[idx+2]=g; img.data[idx+3]=255;
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+
+  // ---------- HUD update ----------
+  function updateHud(){
+    hud.day.textContent = day;
+    hud.speedx.textContent = simSpeed+"×";
+    hud.citycount.textContent = cities.length;
+    const worldPop = cities.reduce((a,c)=>a+c.pop,0);
+    hud.worldpop.textContent = fmt(worldPop);
+    const avgA = cities.length? cities.reduce((a,c)=>a+c.ideo.A,0)/cities.length : 0;
+    const avgB = cities.length? cities.reduce((a,c)=>a+c.ideo.B,0)/cities.length : 0;
+    hud.avgIdeo.textContent = `${avgA.toFixed(2)}|${avgB.toFixed(2)}`;
+    hud.avgPros.textContent = (cities.reduce((a,c)=>a+c.pros,0)/Math.max(1,cities.length)).toFixed(1);
+    hud.avgUnrest.textContent = (cities.reduce((a,c)=>a+c.unrest,0)/Math.max(1,cities.length)).toFixed(1);
+    tradeRangeLabel.textContent = Math.round(tradeRangeKm)+"km";
+    renderList();
+  }
+
+  // ---------- Main loop ----------
+  function animate(){
+    requestAnimationFrame(animate);
+    globe.rotation.y += selfSpin; // single source of rotation -> no layer drift
+    moonAngle += 0.002; moonOrbit.rotation.y = moonAngle;
+    if(!paused){ for(let i=0;i<simSpeed;i++) tickOnce(); }
+    updateTicker();
+    updateCamera();
+    renderer.render(scene,camera);
+  }
+
+  // ---------- Init ----------
+  generateWorld(worldSeed);
+  if(document.getElementById('autoSpawn').checked) seedStarter();
+  drawCityOverlay();
+  updateHud();
+  animate();
+
+  // Responsive
+  addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+})();
+</script>
+</body>
+</html>

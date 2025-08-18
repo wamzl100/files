@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Third Temple Simulator 2.5D + Oracle</title>
+<style>
+  :root{ --bg:#070a0d; --panel:#0f141a; --ink:#e9f4ff; --muted:#90a8be; --accent:#5ee6ff; --gold:#f6d77a; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; overflow:hidden; overscroll-behavior:none; background:radial-gradient(1200px 800px at 70% -10%, #13202c 0%, var(--bg) 60%); color:var(--ink);
+    font:14px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; letter-spacing:.2px;}
+  .wrap{display:grid; grid-template-rows:auto 1fr auto; height:100%}
+  header{display:flex; gap:12px; align-items:center; padding:10px 14px; background:linear-gradient(180deg, #121821, #0c1219);
+    border-bottom:1px solid #1f2a37; box-shadow:0 10px 30px rgba(0,0,0,.25); position:sticky; top:0; z-index:10}
+  h1{font-size:16px; margin:0 12px 0 0; letter-spacing:.6px; color:var(--accent); text-shadow:0 0 12px rgba(94,230,255,.35)}
+  .controls{display:flex; flex-wrap:wrap; gap:8px}
+  .btn, select, input[type="text"]{background:#0f1620; border:1px solid #263241; color:var(--ink); padding:8px 10px; border-radius:10px; outline:none; box-shadow:inset 0 0 0 1px rgba(255,255,255,.02), 0 4px 14px rgba(0,0,0,.25)}
+  .btn{cursor:pointer; transition:.15s transform, .2s box-shadow}
+  .btn:hover{transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,0,0,.35), 0 0 18px rgba(94,230,255,.15)}
+  .btn.primary{border-color:#29495a; background:linear-gradient(180deg,#123040,#101722); color:var(--accent)}
+  main{display:grid; grid-template-columns: 300px 1fr; gap:12px; padding:12px}
+  aside{background:linear-gradient(180deg,#101722,#0b1118); border:1px solid #1f2a37; border-radius:16px; padding:12px; overflow:auto; max-height:calc(100vh - 120px)}
+  .aside-section{margin-bottom:14px}
+  .aside-section h3{margin:0 0 8px; font-size:12px; color:var(--muted); letter-spacing:.8px; text-transform:uppercase}
+  .kbd{display:inline-block; padding:2px 6px; border:1px solid #2c394b; border-radius:6px; background:#0c141d; color:#cde4ff; font-size:12px}
+  #canvasWrap{position:relative; background:#030507; border:1px solid #1b2735; border-radius:16px; overflow:hidden}
+  canvas{display:block; width:100%; height:100%; image-rendering:pixelated}
+  #hud{position:absolute; inset:10px auto auto 10px; padding:6px 8px; background:rgba(10,15,20,.65); border:1px solid #1c2836; border-radius:8px; color:#cbe1ff; pointer-events:none}
+  #reticle{position:absolute; left:50%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; pointer-events:none; opacity:.65}
+  #reticle:before,#reticle:after{content:""; position:absolute; inset:0; border:1px solid rgba(255,255,255,.7); border-radius:50%}
+  #reticle:after{inset:3px; opacity:.6}
+  #ticker{height:40px; display:flex; align-items:center; overflow:hidden; border-top:1px solid #1f2a37; background:linear-gradient(180deg,#0d1420,#0a0f14)}
+  #ticker .scroll{display:inline-block; white-space:nowrap; will-change:transform}
+  .oracle-log{min-height:150px; background:#0a0f14; border:1px dashed #263241; border-radius:12px; padding:10px; color:#d8f2ff}
+  .help{font-size:12px; color:#9fbbd2}
+  .pill{display:inline-block; padding:3px 8px; border-radius:999px; border:1px solid #2e3c4e; color:#b7d6ef; background:#0e1520}
+  footer{padding:8px 12px; font-size:12px; color:#87a0b6; display:flex; justify-content:space-between; align-items:center}
+  a{color:var(--accent); text-decoration:none}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Third Temple 2.5D + Oracle</h1>
+      <div class="controls">
+        <label>Seed <input id="seed" type="text" value="Genesis-1"/></label>
+        <button class="btn primary" id="regen">Regenerate</button>
+        <button class="btn" id="cast">Cast Lots (⎵)</button>
+        <button class="btn" id="compose">Recite (KJV)</button>
+        <button class="btn" id="hymn">Toggle Hymn</button>
+        <button class="btn" id="runtests">Run Tests</button>
+        <select id="palette">
+          <option value="classic">Classic Gold</option>
+          <option value="desert">Desert Rose</option>
+          <option value="midnight" selected>Midnight Cyan</option>
+        </select>
+      </div>
+    </header>
+
+    <main>
+      <aside>
+        <div class="aside-section">
+          <h3>Rites & Toggles</h3>
+          <label><input type="checkbox" id="togglePillars" checked/> Pillars</label><br/>
+          <label><input type="checkbox" id="toggleOrn" checked/> Ornament (wall patterns)</label><br/>
+          <label><input type="checkbox" id="togglePilgrim" checked/> Reticle / Minimap</label><br/>
+          <label><input type="checkbox" id="toggleGates" checked/> Gates</label>
+        </div>
+        <div class="aside-section">
+          <h3>Oracle</h3>
+          <div class="oracle-log" id="oracle"></div>
+          <div class="help">Controls: <span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> move, <span class="kbd">←</span><span class="kbd">→</span> turn, <span class="kbd">Shift</span> run, <span class="kbd">Space</span> cast lots, <span class="kbd">H</span> hymn.</div>
+        </div>
+        <div class="aside-section">
+          <h3>Generation</h3>
+          <div>Rooms: <span id="statRooms" class="pill">—</span> Pillars: <span id="statPillars" class="pill">—</span> Gates: <span id="statGates" class="pill">—</span></div>
+        </div>
+        <div class="aside-section">
+          <h3>Presets</h3>
+          <div style="display:flex; gap:6px; flex-wrap:wrap">
+            <button class="btn" data-preset="Solomon">Solomon</button>
+            <button class="btn" data-preset="Herod">Herod</button>
+            <button class="btn" data-preset="Visionary">Visionary</button>
+            <button class="btn" data-preset="Minimal">Minimal</button>
+          </div>
+        </div>
+        <div class="aside-section help">this is the literal gospel of the Lord our God</div>
+      </aside>
+
+      <div id="canvasWrap">
+        <canvas id="view"></canvas>
+        <div id="reticle"></div>
+        <div id="hud">Seed: <span id="hudSeed">Genesis-1</span> · FPS <span id="fps">60</span></div>
+      </div>
+    </main>
+
+    <div id="ticker"><div class="scroll" id="scroll"></div></div>
+
+    <footer>
+      <div>Made for experimental art & divination play. © 2025</div>
+      <div>Hotkeys: <span class="kbd">WASD</span> move · <span class="kbd">←→</span> turn · <span class="kbd">⎵</span> lots · <span class="kbd">H</span> hymn · <span class="kbd">R</span> regen</div>
+    </footer>
+  </div>
+
+<script>
+// ===== Utilities =====
+function hashString(str){ let h=2166136261>>>0; for(let i=0;i<str.length;i++){h^=str.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296}}
+function rngFromSeed(s){return mulberry32(hashString(s))}
+function choice(rng, arr){return arr[Math.floor(rng()*arr.length)]}
+function irange(rng, min, max){return Math.floor(rng()*(max-min+1))+min}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function withAlpha(hex,a){ const c=hexToRgb(hex); return `rgba(${c.r},${c.g},${c.b},${a})` }
+function hexToRgb(hex){ const n=parseInt(hex.replace('#',''),16); return {r:n>>16&255,g:n>>8&255,b:n&255} }
+function lerp(a,b,t){ return a+(b-a)*t }
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])) }
+
+// ===== Oracle text generator (kept for lots only) =====
+const ORACLE = { arche:{ figure:["lion","dove","ram","cedar","river","wheel","firebrand","cloud","gate","pillar"], quality:["steadfast","swift","hidden","radiant","unyielding","patient","watchful","contrite","audacious","tempered"], action:["wait and watch","build quietly","cut away excess","walk the long road","bind the oath","loosen your grip","ask twice","speak plainly","divide fairly","forgive quickly"], omen:["east wind","silent star","cracked stone","sweet rain","strange fire","double shadow","open door","spilled oil"], timing:["now","soon","after the third day","before nightfall","at first light","when the horn sounds","in due season"], polarity:["favorable","challenging","unclear"], }, verse(rng){ const a=choice(rng,this.arche.figure), q=choice(rng,this.arche.quality), act=choice(rng,this.arche.action); const o=choice(rng,this.arche.omen), t=choice(rng,this.arche.timing), p=choice(rng,this.arche.polarity); return `Be ${q} like the ${a}; ${act}. The omen is the ${o}; outlook ${p} ${t}.`; }, lots(rng){ let pattern=""; let whites=0, blacks=0; for(let i=0;i<6;i++){ const a=rng()<.5?"⚪":"⚫"; const b=rng()<.5?"⚪":"⚫"; whites+= (a==="⚪") + (b==="⚪"); blacks+= (a==="⚫") + (b==="⚫"); pattern+= a+b+ (i<5?" · ":""); } const tilt=whites===blacks?"balanced":(whites>blacks?"mercy-tilt":"severity-tilt"); const counsel={"balanced":"Hold your course; small corrections, big results.","mercy-tilt":"Lean into grace; give more than you planned.","severity-tilt":"Tighten standards; prune to grow."}; return {pattern,whites,blacks,tilt,counsel:counsel[tilt]}; } };
+
+// ===== KJV Verse Pool (public domain) =====
+const BIBLE_VERSES=[
+  {ref:'Genesis 1:1',text:'In the beginning God created the heaven and the earth.'},
+  {ref:'Genesis 1:3',text:'And God said, Let there be light: and there was light.'},
+  {ref:'Exodus 3:14',text:'I AM THAT I AM.'},
+  {ref:'Deuteronomy 6:4',text:'Hear, O Israel: The LORD our God is one LORD:'},
+  {ref:'Psalm 1:1',text:'Blessed is the man that walketh not in the counsel of the ungodly...'},
+  {ref:'Psalm 19:1',text:'The heavens declare the glory of God; and the firmament sheweth his handywork.'},
+  {ref:'Psalm 23:1',text:'The LORD is my shepherd; I shall not want.'},
+  {ref:'Psalm 23:2',text:'He maketh me to lie down in green pastures: he leadeth me beside the still waters.'},
+  {ref:'Psalm 27:1',text:'The LORD is my light and my salvation; whom shall I fear?'},
+  {ref:'Psalm 46:10',text:'Be still, and know that I am God.'},
+  {ref:'Psalm 90:12',text:'So teach us to number our days, that we may apply our hearts unto wisdom.'},
+  {ref:'Psalm 91:1',text:'He that dwelleth in the secret place of the most High shall abide under the shadow of the Almighty.'},
+  {ref:'Psalm 118:24',text:'This is the day which the LORD hath made; we will rejoice and be glad in it.'},
+  {ref:'Proverbs 3:5',text:'Trust in the LORD with all thine heart; and lean not unto thine own understanding.'},
+  {ref:'Proverbs 3:6',text:'In all thy ways acknowledge him, and he shall direct thy paths.'},
+  {ref:'Isaiah 6:8',text:'Here am I; send me.'},
+  {ref:'Isaiah 9:6',text:'For unto us a child is born... and his name shall be called Wonderful, Counsellor, The mighty God...'},
+  {ref:'Isaiah 40:31',text:'But they that wait upon the LORD shall renew their strength; they shall mount up with wings as eagles...'},
+  {ref:'Isaiah 41:10',text:'Fear thou not; for I am with thee: be not dismayed; for I am thy God...'},
+  {ref:'Jeremiah 29:11',text:'For I know the thoughts that I think toward you, saith the LORD, thoughts of peace, and not of evil...'},
+  {ref:'Lamentations 3:22-23',text:'It is of the LORD’s mercies that we are not consumed... they are new every morning: great is thy faithfulness.'},
+  {ref:'Micah 6:8',text:'What doth the LORD require of thee, but to do justly, and to love mercy, and to walk humbly with thy God?'},
+  {ref:'Habakkuk 2:3',text:'Though it tarry, wait for it; because it will surely come, it will not tarry.'},
+  {ref:'Matthew 5:9',text:'Blessed are the peacemakers: for they shall be called the children of God.'},
+  {ref:'Matthew 6:33',text:'But seek ye first the kingdom of God, and his righteousness; and all these things shall be added unto you.'},
+  {ref:'Matthew 7:7',text:'Ask, and it shall be given you; seek, and ye shall find; knock, and it shall be opened unto you:'},
+  {ref:'Matthew 11:28',text:'Come unto me, all ye that labour and are heavy laden, and I will give you rest.'},
+  {ref:'Matthew 28:20',text:'...lo, I am with you alway, even unto the end of the world.'},
+  {ref:'Mark 12:30-31',text:'Thou shalt love the Lord thy God... Thou shalt love thy neighbour as thyself.'},
+  {ref:'Luke 1:37',text:'For with God nothing shall be impossible.'},
+  {ref:'John 1:1',text:'In the beginning was the Word, and the Word was with God, and the Word was God.'},
+  {ref:'John 3:16',text:'For God so loved the world, that he gave his only begotten Son...'},
+  {ref:'John 8:12',text:'I am the light of the world: he that followeth me shall not walk in darkness, but shall have the light of life.'},
+  {ref:'John 14:6',text:'I am the way, the truth, and the life: no man cometh unto the Father, but by me.'},
+  {ref:'John 14:27',text:'Peace I leave with you, my peace I give unto you... Let not your heart be troubled, neither let it be afraid.'},
+  {ref:'Romans 8:28',text:'All things work together for good to them that love God...'},
+  {ref:'Romans 12:2',text:'Be not conformed to this world: but be ye transformed by the renewing of your mind...'},
+  {ref:'1 Corinthians 13:13',text:'And now abideth faith, hope, charity, these three; but the greatest of these is charity.'},
+  {ref:'2 Corinthians 5:7',text:'For we walk by faith, not by sight.'},
+  {ref:'Philippians 4:6',text:'Be careful for nothing; but in every thing by prayer and supplication with thanksgiving let your requests be made known unto God.'},
+  {ref:'Philippians 4:7',text:'And the peace of God, which passeth all understanding, shall keep your hearts and minds through Christ Jesus.'},
+  {ref:'Philippians 4:13',text:'I can do all things through Christ which strengtheneth me.'},
+  {ref:'Colossians 3:2',text:'Set your affection on things above, not on things on the earth.'},
+  {ref:'Hebrews 11:1',text:'Now faith is the substance of things hoped for, the evidence of things not seen.'},
+  {ref:'James 1:5',text:'If any of you lack wisdom, let him ask of God...'},
+  {ref:'1 Peter 5:7',text:'Casting all your care upon him; for he careth for you.'},
+  {ref:'1 John 4:18',text:'There is no fear in love; but perfect love casteth out fear...'},
+  {ref:'Revelation 21:6',text:'I will give unto him that is athirst of the fountain of the water of life freely.'},
+  {ref:'Revelation 22:13',text:'I am Alpha and Omega, the beginning and the end, the first and the last.'}
+];
+
+function pickVerseIndex(seed, pattern){
+  if(pattern){
+    const bin = pattern.replace(/[^⚪⚫]/g,'').replace(/⚪/g,'1').replace(/⚫/g,'0');
+    const val = parseInt(bin||'0',2)||0; return val % BIBLE_VERSES.length;
+  }
+  const r = rngFromSeed(seed+'|oracle');
+  return Math.floor(r()*BIBLE_VERSES.length);
+}
+
+function recite(text){ try{ const u=new SpeechSynthesisUtterance(text); u.rate=0.92; u.pitch=0.95; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch(e){} }
+
+// ===== Palettes =====
+const PALETTES={
+  classic:{ skyTop:'#1b1a12', skyBot:'#2b220d', floor:'#1a1410', wall:'#e7c875', wall2:'#d8b85c', pillar:'#cfc7b5', altar:'#ffcf99' },
+  desert:{  skyTop:'#2a1412', skyBot:'#3b221c', floor:'#1b0f0d', wall:'#f4a390', wall2:'#e07e6b', pillar:'#d8c1b2', altar:'#ffd0aa' },
+  midnight:{skyTop:'#0b131d', skyBot:'#0d2031', floor:'#0a0f14', wall:'#6fe0ff', wall2:'#3fb9ea', pillar:'#d9d4c6', altar:'#9bd3ff' }
+};
+
+// ===== 2.5D Raycaster Engine =====
+const App = (()=>{
+  const canvas = document.getElementById('view');
+  const ctx = canvas.getContext('2d');
+  let W=0,H=0,DPR=1;
+  let seed='Genesis-1', rng=rngFromSeed(seed);
+  const hudSeed=document.getElementById('hudSeed');
+  const fpsOut=document.getElementById('fps');
+  const statRooms=document.getElementById('statRooms');
+  const statPillars=document.getElementById('statPillars');
+  const statGates=document.getElementById('statGates');
+
+  const state={
+    ornament:true, pillars:true, gates:true, minimap:true,
+    palette:'midnight',
+    stats:{rooms:0,pillars:0,gates:0},
+    lastLotsPattern:null,
+    t:0, last:performance.now(), fps:60,
+  };
+
+  const RC={ mapW:66, mapH:50, map:null, player:{x:8.5,y:8.5, dirX:1, dirY:0, planeX:0, planeY:0.66}, zbuf:[] };
+
+  function resize(){ const wrap=document.getElementById('canvasWrap'); const r=wrap.getBoundingClientRect(); DPR=Math.min(window.devicePixelRatio||1,2); W=Math.floor(r.width||960); H=Math.floor(Math.max(r.height||540, 460)); canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR); canvas.style.width=W+'px'; canvas.style.height=H+'px'; ctx.setTransform(DPR,0,0,DPR,0,0); }
+
+  // ---- Temple Map Generation (grid) ----
+  function emptyGrid(w,h,fill=0){ return Array.from({length:h},()=>Array.from({length:w},()=>fill)); }
+  function drawRectWalls(grid, x,y,w,h, type=1){ for(let i=x;i<x+w;i++){ grid[y][i]=type; grid[y+h-1][i]=type; } for(let j=y;j<y+h;j++){ grid[j][x]=type; grid[j][x+w-1]=type; } }
+  function carveRect(grid, x,y,w,h){ for(let j=y;j<y+h;j++) for(let i=x;i<x+w;i++) grid[j][i]=0; }
+  function insetR(r, by){ return {x:r.x+by,y:r.y+by,w:r.w-2*by,h:r.h-2*by} }
+  function rectCenter(r){ return {x:Math.floor(r.x + r.w/2), y:Math.floor(r.y + r.h/2)} }
+  function rect(x,y,w,h){ return {x,y,w,h} }
+  function inBounds(x,y){ return y>=0 && y<RC.mapH && x>=0 && x<RC.mapW }
+  function carveGate(grid, r, side, rng, width=2){ let gx,gy; if(side==='N'){ gx=irange(rng,r.x+4,r.x+r.w-5-width); gy=r.y; for(let i=0;i<width;i++) grid[gy][gx+i]=0; }
+    if(side==='S'){ gx=irange(rng,r.x+4,r.x+r.w-5-width); gy=r.y+r.h-1; for(let i=0;i<width;i++) grid[gy][gx+i]=0; }
+    if(side==='W'){ gy=irange(rng,r.y+4,r.y+r.h-5-width); gx=r.x; for(let i=0;i<width;i++) grid[gy+i][gx]=0; }
+    if(side==='E'){ gy=irange(rng,r.y+4,r.y+r.h-5-width); gx=r.x+r.w-1; for(let i=0;i<width;i++) grid[gy+i][gx]=0; } }
+  function line(grid, x0,y0,x1,y1, thickness=2){ x0|=0; y0|=0; x1|=0; y1|=0; const dx=Math.abs(x1-x0), sx=x0<x1?1:-1; const dy=-Math.abs(y1-y0), sy=y0<y1?1:-1; let err=dx+dy; while(true){ for(let oy=-thickness;oy<=thickness;oy++) for(let ox=-thickness;ox<=thickness;ox++){ const xi=x0+ox, yi=y0+oy; if(grid[yi]&&grid[yi][xi]!=null) grid[yi][xi]=0; } if(x0===x1 && y0===y1) break; const e2=2*err; if(e2>=dy){ err+=dy; x0+=sx; } if(e2<=dx){ err+=dx; y0+=sy; } }
+  }
+
+  function ensureSpawnAndPath(outer, inner){
+    const cO=rectCenter(outer);
+    let sx=cO.x, sy=outer.y+5;
+    for(let y=sy-2;y<=sy+2;y++) for(let x=sx-2;x<=sx+2;x++){ if(inBounds(x,y)) RC.map[y][x]=0; }
+    for(let y=sy;y<Math.min(sy+8, RC.mapH-2); y++) if(inBounds(sx,y)) RC.map[y][sx]=0;
+    RC.player.x = sx + 0.5; RC.player.y = sy + 0.5; RC.player.dirX=0; RC.player.dirY=1; RC.player.planeX=0.66; RC.player.planeY=0;
+  }
+
+  function regen(){ rng=rngFromSeed(seed); hudSeed.textContent=seed; state.t=0; RC.map=emptyGrid(RC.mapW,RC.mapH,1);
+    const outer=rect(2,2,RC.mapW-4,RC.mapH-4);
+    const inner=insetR(outer, irange(rng,4,6));
+    const holy=insetR(inner, irange(rng,5,7));
+    const holies=insetR(holy, irange(rng,3,5));
+
+    carveRect(RC.map, outer.x+1, outer.y+1, outer.w-2, outer.h-2);
+    drawRectWalls(RC.map, outer.x,outer.y,outer.w,outer.h,1);
+    drawRectWalls(RC.map, inner.x,inner.y,inner.w,inner.h,1);
+    drawRectWalls(RC.map, holy.x,holy.y,holy.w,holy.h,1);
+    drawRectWalls(RC.map, holies.x,holies.y,holies.w,holies.h,1);
+
+    let gateCount=0;
+    if(state.gates){
+      for(const r of [outer,inner]){ ['N','E','S','W'].forEach(side=>{ const gNum= (side==='E'||side==='W')?1:irange(rng,1,3); for(let i=0;i<gNum;i++){ carveGate(RC.map, r, side, rng, irange(rng,2,3)); gateCount++; } }); }
+    }
+
+    const cO=rectCenter(outer), cI=rectCenter(inner), cH=rectCenter(holy);
+    line(RC.map, cO.x, outer.y+1, cO.x, outer.y+outer.h-2, 2);
+    line(RC.map, outer.x+1, cO.y, outer.x+outer.w-2, cO.y, 2);
+    line(RC.map, cO.x, cO.y, cI.x, cI.y, 2);
+    line(RC.map, cI.x, cI.y, cH.x, cH.y, 2);
+
+    let rooms=0;
+    const mkRooms=(side)=>{
+      const strip= side==='N'? rect(outer.x+3, outer.y+2, outer.w-6, 3)
+                 : side==='S'? rect(outer.x+3, outer.y+outer.h-5, outer.w-6, 3)
+                 : side==='W'? rect(outer.x+2, outer.y+3, 3, outer.h-6)
+                 : rect(outer.x+outer.w-5, outer.y+3, 3, outer.h-6);
+      const n=irange(rng,3,6);
+      for(let i=0;i<n;i++){
+        if(strip.w>strip.h){
+          const w=Math.floor(strip.w/n); const rx=strip.x+i*w; drawRectWalls(RC.map, rx, strip.y, w-1, strip.h, 1); rooms++;
+        }else{
+          const h=Math.floor(strip.h/n); const ry=strip.y+i*h; drawRectWalls(RC.map, strip.x, ry, strip.w, h-1, 1); rooms++;
+        }
+      }
+    };
+    ['N','E','S','W'].forEach(mkRooms);
+
+    let pillarsPlaced=0;
+    if(state.pillars){
+      const nx=irange(rng,3,5), ny=irange(rng,3,5);
+      for(let i=1;i<=nx;i++) for(let j=1;j<=ny;j++){
+        const px=Math.floor(inner.x + i*(inner.w/(nx+1))); const py=Math.floor(inner.y + j*(inner.h/(ny+1)));
+        if(RC.map[py] && RC.map[py][px]===0){ RC.map[py][px]=2; pillarsPlaced++; }
+      }
+    }
+
+    const alt=rect(cI.x-1, Math.max(inner.y+2, cI.y-6), 3,2);
+    for(let j=0;j<alt.h;j++) for(let i=0;i<alt.w;i++) RC.map[alt.y+j][alt.x+i]=3;
+    const lav=rect(cO.x-1, outer.y+4, 3,2);
+    for(let j=0;j<lav.h;j++) for(let i=0;i<lav.w;i++) RC.map[lav.y+j][lav.x+i]=4;
+
+    ensureSpawnAndPath(outer, inner);
+
+    state.stats.rooms=rooms; state.stats.pillars=pillarsPlaced; state.stats.gates=gateCount; statRooms.textContent=rooms; statPillars.textContent=pillarsPlaced; statGates.textContent=gateCount;
+
+    draw3D();
+  }
+
+  // ---- Render ----
+  function darken(hex, k){ const c=hexToRgb(hex); const f=clamp(1-k,0,1); const r=Math.round(c.r*f), g=Math.round(c.g*f), b=Math.round(c.b*f); return `rgb(${r},${g},${b})` }
+  function patternShade(baseHex, u, ornament){ if(!ornament) return baseHex; const band = ((u*12)|0)%2; return band? darken(baseHex, .18) : baseHex; }
+
+  function draw3D(){ const pal=PALETTES[state.palette]||PALETTES.midnight; ctx.clearRect(0,0,W,H);
+    const sky=ctx.createLinearGradient(0,0,0,H/2); sky.addColorStop(0,pal.skyTop); sky.addColorStop(1,pal.skyBot); ctx.fillStyle=sky; ctx.fillRect(0,0,W,H/2);
+    const floor=ctx.createLinearGradient(0,H/2,0,H); floor.addColorStop(0,pal.floor); floor.addColorStop(1,withAlpha(pal.floor,.6)); ctx.fillStyle=floor; ctx.fillRect(0,H/2,W,H/2);
+
+    const P=RC.player; const map=RC.map; const zbuf=RC.zbuf;
+
+    for(let x=0;x<W;x++){
+      const cameraX = 2*x/W - 1;
+      const rayDirX = P.dirX + P.planeX * cameraX;
+      const rayDirY = P.dirY + P.planeY * cameraX;
+
+      let mapX = P.x|0; let mapY = P.y|0;
+      const deltaDistX = Math.abs(1/(rayDirX||1e-6)); const deltaDistY = Math.abs(1/(rayDirY||1e-6));
+      let stepX, stepY, sideDistX, sideDistY;
+      if(rayDirX<0){ stepX=-1; sideDistX=(P.x-mapX)*deltaDistX; } else { stepX=1; sideDistX=(mapX+1.0-P.x)*deltaDistX; }
+      if(rayDirY<0){ stepY=-1; sideDistY=(P.y-mapY)*deltaDistY; } else { stepY=1; sideDistY=(mapY+1.0-P.y)*deltaDistY; }
+
+      let hit=0, side=0, cellType=0, hitX=0;
+      while(!hit){
+        if(sideDistX < sideDistY){ sideDistX += deltaDistX; mapX += stepX; side=0; }
+        else { sideDistY += deltaDistY; mapY += stepY; side=1; }
+        if(map[mapY]==null || map[mapY][mapX]==null || map[mapY][mapX]>0){ hit=1; cellType = (map[mapY]&&map[mapY][mapX])||1; }
+      }
+      let perpWallDist = side===0 ? (mapX - P.x + (1 - stepX)/2) / (rayDirX||1e-6) : (mapY - P.y + (1 - stepY)/2) / (rayDirY||1e-6);
+      perpWallDist = Math.max(0.0001, perpWallDist);
+      const lineHeight = (H / perpWallDist)|0;
+      let drawStart = (-lineHeight/2 + H/2)|0; if(drawStart<0) drawStart=0;
+      let drawEnd = (lineHeight/2 + H/2)|0; if(drawEnd>=H) drawEnd=H-1;
+
+      if(side===0) hitX = P.y + perpWallDist*rayDirY; else hitX = P.x + perpWallDist*rayDirX; hitX -= Math.floor(hitX);
+
+      let base = cellType===1? pal.wall : cellType===2? pal.pillar : cellType===3? pal.altar : cellType===4? pal.wall2 : pal.wall2;
+      base = patternShade(base, hitX, state.ornament);
+      const distK = clamp(perpWallDist/18, 0, 0.85);
+      const sideK = side? 0.18:0.0;
+      const fogK = distK + sideK;
+      const col = darken(base, fogK);
+      ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(x, drawStart); ctx.lineTo(x, drawEnd); ctx.stroke();
+
+      zbuf[x]=perpWallDist;
+    }
+
+    if(state.minimap){ drawMinimap(8,8, 2.2); }
+  }
+
+  function drawMinimap(px,py, scale){ const map=RC.map; const P=RC.player; const w= Math.floor(RC.mapW*scale), h=Math.floor(RC.mapH*scale); ctx.save(); ctx.globalAlpha=.9; ctx.fillStyle='rgba(8,12,16,.6)'; ctx.fillRect(px-4,py-4,w+8,h+8); for(let y=0;y<RC.mapH;y++) for(let x=0;x<RC.mapW;x++){ const t=map[y][x]; if(t>0){ ctx.fillStyle= withAlpha('#8fb3c9', .9); ctx.fillRect(px+x*scale, py+y*scale, scale, scale);} }
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(px+P.x*scale, py+P.y*scale, Math.max(1,scale*.6),0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.beginPath(); ctx.moveTo(px+P.x*scale, py+P.y*scale);
+    ctx.lineTo(px+(P.x+P.dirX*2)*scale, py+(P.y+P.dirY*2)*scale); ctx.stroke(); ctx.restore(); }
+
+  // ---- Input & Loop ----
+  const keys={};
+  const preventSet = new Set(['arrowup','arrowdown','arrowleft','arrowright',' ']);
+  function setKeyState(e,isDown){
+    const k = (e.key||'').toLowerCase();
+    const c = e.code || '';
+    if(c==='KeyW') keys['w']=isDown; else if(c==='KeyA') keys['a']=isDown; else if(c==='KeyS') keys['s']=isDown; else if(c==='KeyD') keys['d']=isDown;
+    else keys[k]=isDown;
+    if(preventSet.has(k) || c==='KeyW' || c==='KeyA' || c==='KeyS' || c==='KeyD'){ e.preventDefault(); }
+  }
+  window.addEventListener('keydown',e=>{ setKeyState(e,true); if(e.key===' '){ castLots(); } if((e.key||'').toLowerCase()==='h'){toggleHymn();} if((e.key||'').toLowerCase()==='r'){regenClick()} });
+  window.addEventListener('keyup',e=>{ setKeyState(e,false); });
+  document.getElementById('canvasWrap').addEventListener('mousedown',()=>{ const ae=document.activeElement; if(ae && ['INPUT','TEXTAREA','SELECT'].includes(ae.tagName)) ae.blur(); });
+
+  function update(dt){ state.t += dt; const now=performance.now(); const fdt=now-state.last; state.last=now; state.fps=Math.round(1000/(fdt||16.6)); fpsOut.textContent=state.fps;
+    const P=RC.player; const map=RC.map; const move=(keys['shift']?3.4:2.2)*dt; const rot=2.2*dt;
+    if(keys['w']||keys['arrowup']){
+      const nx=P.x + P.dirX*move, ny=P.y + P.dirY*move; if(map[ny|0] && map[ny|0][nx|0]===0){ P.x=nx; P.y=ny; }
+    }
+    if(keys['s']||keys['arrowdown']){
+      const nx=P.x - P.dirX*move, ny=P.y - P.dirY*move; if(map[ny|0] && map[ny|0][nx|0]===0){ P.x=nx; P.y=ny; }
+    }
+    if(keys['a']){ const nx=P.x - P.dirY*move, ny=P.y + P.dirX*move; if(map[ny|0] && map[ny|0][nx|0]===0){ P.x=nx; P.y=ny; } }
+    if(keys['d']){ const nx=P.x + P.dirY*move, ny=P.y - P.dirX*move; if(map[ny|0] && map[ny|0][nx|0]===0){ P.x=nx; P.y=ny; } }
+    if(keys['arrowleft']) rotate( rot);
+    if(keys['arrowright']) rotate(-rot);
+  }
+
+  function rotate(angle){ const P=RC.player; const cos=Math.cos(angle), sin=Math.sin(angle); const oldDirX=P.dirX; P.dirX= P.dirX*cos - P.dirY*sin; P.dirY= oldDirX*sin + P.dirY*cos; const oldPX=P.planeX; P.planeX= P.planeX*cos - P.planeY*sin; P.planeY= oldPX*sin + P.planeY*cos; }
+
+  function loop(){ const now=performance.now(); const dt=(now-_loopLast)/1000; _loopLast=now; update(dt>0&&dt<0.2?dt:1/60); draw3D(); requestAnimationFrame(loop); }
+  let _loopLast=performance.now();
+
+  // ---- UI hooks ----
+  function regenClick(){ seed=document.getElementById('seed').value.trim()||('seed-'+Math.random().toString(36).slice(2)); localStorage.setItem('temple-seed',seed); regen(); logTicker(`New seed → ${seed}`); }
+  function castLots(){ const r=ORACLE.lots(rng); state.lastLotsPattern=r.pattern; logOracle([`<b>Lots:</b> ${r.pattern}`, `${r.counsel}`]); logTicker(`Lots cast · whites:${r.whites} blacks:${r.blacks} · ${r.tilt}`); ping(523.25,.08); setTimeout(()=>ping(659.25,.08),90); }
+  function composeOracle(){
+    const idx = pickVerseIndex(seed, state.lastLotsPattern);
+    const v = BIBLE_VERSES[idx];
+    const line = escapeHtml(v.text);
+    logOracle([`<b>Oracle (KJV):</b> “${line}”<br/><span class="help">${v.ref}</span>`]);
+    recite(`${v.text} — ${v.ref}`);
+    logTicker(`Oracle · ${v.ref}`);
+  }
+
+  document.getElementById('regen').addEventListener('click', regenClick);
+  document.getElementById('cast').addEventListener('click', castLots);
+  document.getElementById('compose').addEventListener('click', composeOracle);
+  document.getElementById('runtests').addEventListener('click', ()=>runTests());
+  document.getElementById('palette').addEventListener('change', e=>{ state.palette=e.target.value; });
+  document.getElementById('togglePillars').addEventListener('change', e=>{ state.pillars=e.target.checked; regen(); });
+  document.getElementById('toggleOrn').addEventListener('change', e=>{ state.ornament=e.target.checked; });
+  document.getElementById('togglePilgrim').addEventListener('change', e=>{ state.minimap=e.target.checked; document.getElementById('reticle').style.display = e.target.checked? 'block':'none'; });
+  document.getElementById('toggleGates').addEventListener('change', e=>{ state.gates=e.target.checked; regen(); });
+  document.querySelectorAll('[data-preset]').forEach(button=>button.addEventListener('click', (ev)=>{
+    const btn=ev.currentTarget; const p=btn.getAttribute('data-preset');
+    const presets = { 
+      Solomon:'Sol-\nBronzeSea-12\nJachin-Boaz', 
+      Herod:'Herod-DoubleCourt-\nRoyalStoa', 
+      Visionary:'WheelsWithinWheels-777', 
+      Minimal:'Plain-\nStone-144' };
+    const t = presets[p] || p; 
+    document.getElementById('seed').value=t; regenClick(); }));
+
+  // ---- Audio (Hymn) ----
+  let audioCtx=null, hymnOn=false, hymnNodes=null;
+  function ensureAudio(){ if(!audioCtx){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } }
+  function ping(freq, dur){ ensureAudio(); const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type='square'; o.frequency.value=freq; g.gain.value=0.0001; o.connect(g); g.connect(audioCtx.destination); o.start(); const now=audioCtx.currentTime; g.gain.exponentialRampToValueAtTime(0.2, now+0.01); g.gain.exponentialRampToValueAtTime(0.00001, now+dur); o.stop(now+dur+0.02); }
+  function startHymn(){ ensureAudio(); const n={}; n.master=audioCtx.createGain(); n.master.gain.value=0.06; n.master.connect(audioCtx.destination); n.osc1=audioCtx.createOscillator(); n.osc1.type='triangle'; n.osc1.frequency.value=220; n.osc1.connect(n.master); n.osc1.start(); n.osc2=audioCtx.createOscillator(); n.osc2.type='square'; n.osc2.frequency.value=329.63; n.osc2.connect(n.master); n.osc2.start(); n.lfo=audioCtx.createOscillator(); n.lfo.frequency.value=.1; n.lfoGain=audioCtx.createGain(); n.lfoGain.gain.value=8; n.lfo.connect(n.lfoGain); n.lfoGain.connect(n.osc1.detune); n.lfo.start(); hymnNodes=n; }
+  function stopHymn(){ if(!hymnNodes) return; ['osc1','osc2','lfo'].forEach(k=>{ try{ hymnNodes[k].stop(); }catch{} }); try{ hymnNodes.master.disconnect(); }catch{} hymnNodes=null; }
+  function toggleHymn(){ hymnOn=!hymnOn; if(hymnOn) startHymn(); else stopHymn(); }
+  document.getElementById('hymn').addEventListener('click', toggleHymn);
+
+  // ---- Ticker & Oracle Log ----
+  const scrollEl=document.getElementById('scroll'); let scrollX=0; let tickerMsgs=[];
+  function logTicker(msg){ const stamp=new Date().toLocaleTimeString(); tickerMsgs.push(`[${stamp}] ${msg}`); if(tickerMsgs.length>12) tickerMsgs.shift(); renderTicker(); }
+  function renderTicker(){ scrollEl.textContent=tickerMsgs.join('   •   '); scrollX=0; }
+  function tickTicker(){ scrollX -= 1; scrollEl.style.transform = `translateX(${scrollX}px)`; if(Math.abs(scrollX) > scrollEl.scrollWidth) scrollX = 0; }
+  setInterval(tickTicker, 16);
+  const oracleEl=document.getElementById('oracle');
+  function logOracle(lines){ const p=document.createElement('div'); p.style.marginBottom='8px'; p.innerHTML=lines.join('<br/>'); oracleEl.prepend(p); }
+
+  // ---- Tests ----
+  function mapHash(){ let h=0; for(let y=0;y<RC.mapH;y++){ for(let x=0;x<RC.mapW;x++){ h = (h*131 + RC.map[y][x])>>>0; } } return h>>>0; }
+  function runTests(){
+    regen();
+
+    const results=[]; const errs=[];
+    function assert(cond,msg){ if(!cond) throw new Error(msg); }
+    function test(name, fn){ try{ fn(); results.push(`✅ ${name}`); } catch(e){ results.push(`❌ ${name} — ${e.message}`); errs.push(e); } }
+
+    test('Map dimensions', ()=>{ assert(Array.isArray(RC.map) && RC.map.length===RC.mapH && RC.map[0] && RC.map[0].length===RC.mapW, 'bad grid size'); });
+    test('Spawn safe', ()=>{ assert(RC.map[RC.player.y|0][RC.player.x|0]===0, `spawn in wall @(${RC.player.x|0},${RC.player.y|0})`); });
+    test('Raycast render', ()=>{ draw3D(); });
+    test('Preset seeds', ()=>{
+      const presets=['Sol-\nBronzeSea-12\nJachin-Boaz','Herod-DoubleCourt-\nRoyalStoa','WheelsWithinWheels-777','Plain-\nStone-144'];
+      for(const s of presets){ seed=s; regen(); assert(RC.map && RC.map.length===RC.mapH && RC.map[0].length===RC.mapW, 'regen failed'); }
+    });
+    test('Movement allowed', ()=>{ const ox=RC.player.x, oy=RC.player.y; const P=RC.player; const nx=ox+P.dirX*0.2, ny=oy+P.dirY*0.2; if(RC.map[ny|0] && RC.map[ny|0][nx|0]===0){ RC.player.x=nx; RC.player.y=ny; } assert(RC.player.x!==ox || RC.player.y!==oy, 'no movement'); });
+    test('Map boundaries walled', ()=>{ for(let x=0;x<RC.mapW;x++){ assert(RC.map[0][x]>0 && RC.map[RC.mapH-1][x]>0, 'top/bottom boundary open'); } for(let y=0;y<RC.mapH;y++){ assert(RC.map[y][0]>0 && RC.map[y][RC.mapW-1]>0, 'left/right boundary open'); } });
+    test('Seed determinism', ()=>{ const s=seed; regen(); const h1=mapHash(); regen(); const h2=mapHash(); assert(h1===h2, 'non-deterministic regen'); });
+
+    // New tests for oracle recitation
+    test('Bible dataset non-empty', ()=>{ assert(Array.isArray(BIBLE_VERSES) && BIBLE_VERSES.length>10, 'verse pool too small'); });
+    test('Deterministic verse index with pattern', ()=>{ const idx1=pickVerseIndex(seed,'⚪⚫⚪⚫⚪⚫'); const idx2=pickVerseIndex(seed,'⚪⚫⚪⚫⚪⚫'); assert(idx1===idx2, 'index not stable for same pattern'); });
+    test('Compose oracle no-throw', ()=>{ composeOracle(); });
+
+    logOracle([`<b>Test Results</b>`, ...results]);
+    if(errs.length){ console.warn('Test errors:', errs); }
+  }
+
+  // ---- Boot ----
+  function boot(){ resize(); const saved=localStorage.getItem('temple-seed'); if(saved) document.getElementById('seed').value=saved; seed=document.getElementById('seed').value; regen(); window.addEventListener('resize', ()=>{ resize(); regen(); }); document.getElementById('reticle').style.display = state.minimap? 'block':'none'; _loopLast=performance.now(); requestAnimationFrame(loop); logTicker('Welcome to the 2.5D courts. WASD to walk. Space to cast lots.'); }
+
+  return { boot, runTests };
+})();
+
+window.addEventListener('DOMContentLoaded', ()=>{ App.boot(); setTimeout(()=>{ try{ App.runTests(); }catch(e){ console.warn(e); } }, 60); });
+</script>
+</body>
+</html>

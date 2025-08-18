@@ -1,0 +1,616 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cube Lattice — Pipes with Faces (smooth head & tail)</title>
+<style>
+  :root{ --bg:#0b0d10; --fg:#e6e7ea; --panel:rgba(255,255,255,.06); --tab-h:28px }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif}
+  #wrap{position:fixed;inset:0;display:block}
+  header{position:fixed;top:0;left:0;right:0;z-index:10;display:flex;gap:10px;align-items:center;padding:10px 12px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border-bottom:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);transform:translateY(0);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+  header.collapsed{ transform:translateY(calc(-100% + var(--tab-h))) }
+  h1{margin:0;font-size:14px;font-weight:600;letter-spacing:.3px;opacity:.9}
+  .controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+  .group{background:var(--panel);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:8px}
+  label{font-size:12px;opacity:.9;white-space:nowrap}
+  input[type="range"]{width:140px}
+  input[type="checkbox"]{transform:translateY(1px)}
+  select,button{background:#12151b;color:var(--fg);border-radius:8px;border:1px solid rgba(255,255,255,.12);padding:6px 10px}
+  button{cursor:pointer}
+  #c{width:100%;height:100%;display:block}
+  .drawer-tab{ position:absolute; left:50%; transform:translateX(-50%); bottom:-1px; height:var(--tab-h); padding:4px 10px; background:var(--panel); border:1px solid rgba(255,255,255,.12); border-top:none; border-radius:0 0 10px 10px; cursor:pointer; font-size:12px; line-height:calc(var(--tab-h) - 8px) }
+  .hint{opacity:.75}
+  /* diagnostics bubble */
+  #debugBox{position:fixed;right:10px;top:10px;z-index:20;background:rgba(255,0,0,.08);border:1px solid rgba(255,0,0,.4);border-radius:8px;padding:6px 10px;font-size:12px;max-width:48ch;display:none;white-space:pre-wrap}
+  #debugBox.ok{display:block;background:rgba(0,128,0,.08);border-color:rgba(0,128,0,.4)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>Wireframe Cube Lattice</h1>
+    <div class="controls">
+      <div class="group"><label>N</label><input id="n" type="range" min="4" max="18" step="1" value="12"></div>
+      <div class="group"><label>Cube</label><input id="size" type="range" min="0.4" max="2.0" step="0.05" value="1.0"></div>
+      <div class="group"><label>Gap</label><input id="gap" type="range" min="0" max="1.5" step="0.05" value="0.4"></div>
+      <div class="group"><label>FOV</label><input id="fov" type="range" min="20" max="110" step="1" value="85"></div>
+      <div class="group"><label>Line</label><input id="lw" type="range" min="0.3" max="2.0" step="0.1" value="0.8"></div>
+      <div class="group"><label>Speed</label><input id="speed" type="range" min="0" max="2" step="0.01" value="0.35"></div>
+      <div class="group"><label class="hint">Depth fade</label><input id="fade" type="checkbox" checked></div>
+      <div class="group"><label class="hint">Cube edges</label><input id="modeCube" type="checkbox" checked></div>
+      <div class="group"><label class="hint">Axis lines</label><input id="modeAxis" type="checkbox"></div>
+      <div class="group"><label class="hint">Face diagonals</label><input id="diag" type="checkbox"></div>
+      <div class="group"><label>Auto Size</label><input id="autoSize" type="checkbox"><label>±</label><input id="sizeAmp" type="range" min="0" max="1" step="0.01" value="0.20"></div>
+      <div class="group"><label>Auto Gap</label><input id="autoGap" type="checkbox"><label>±</label><input id="gapAmp" type="range" min="0" max="1" step="0.01" value="0.15"></div>
+      <div class="group"><label>Breath</label><input id="breath" type="range" min="0" max="3" step="0.01" value="0.80"></div>
+
+      <!-- colors & faces -->
+      <div class="group"><label>Background</label><input id="bgColor" type="color" value="#0b0d10"></div>
+      <div class="group"><label>Line color</label><input id="lineColor" type="color" value="#e6e7ea"></div>
+      <div class="group"><label class="hint">Solid faces</label><input id="faceOn" type="checkbox"></div>
+      <div class="group"><label>Face color</label><input id="faceColor" type="color" value="#1f6feb"></div>
+      <div class="group"><label>Face α</label><input id="faceAlpha" type="range" min="0" max="1" step="0.01" value="0.25"></div>
+
+      <!-- snakes -->
+      <div class="group"><label class="hint">Snake</label><input id="snakeOn" type="checkbox" checked></div>
+      <div class="group"><label>Snake speed</label><input id="snakeSpeed" type="range" min="0" max="20" step="0.1" value="6"></div>
+      <div class="group"><label>Snake length</label><input id="snakeLen" type="range" min="5" max="500" step="1" value="160"></div>
+      <div class="group"><label>Snake thick</label><input id="snakeThick" type="range" min="1" max="6" step="0.5" value="2.5"></div>
+      <div class="group"><label>Curvy bias</label><input id="turnBias" type="range" min="0" max="3" step="0.05" value="1.2"></div>
+      <div class="group"><label>Snake color</label><input id="snakeColor" type="color" value="#7aa2ff"></div>
+      <div class="group"><label class="hint">Wrap</label><input id="snakeWrap" type="checkbox" checked></div>
+      <div class="group"><label class="hint">Snake fade</label><input id="snakeFade" type="checkbox" checked></div>
+      <div class="group"><label class="hint">Tron collide</label><input id="tronCollide" type="checkbox" checked></div>
+      <!-- NEW: collision avoidance -->
+      <div class="group"><label>Avoid trails</label><input id="avoidStrength" type="range" min="0" max="4" step="0.05" value="1.5"></div>
+      <div class="group"><label class="hint">Avoid self</label><input id="avoidSelf" type="checkbox" checked></div>
+
+      <button id="resetSnake">Reset Snake</button>
+      <button id="addSnake">Add Snake</button>
+      <button id="toggle">⏸︎ Pause</button>
+    </div>
+  <button id="drawerToggle" class="drawer-tab" title="Show/Hide Controls">Controls ▾</button>
+  </header>
+  <canvas id="c"></canvas>
+</div>
+<div id="debugBox" aria-live="polite"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  if(!ctx){
+    const box = document.getElementById('debugBox');
+    box.style.display='block';
+    box.textContent = 'Self-test FAILED: Canvas 2D context unavailable.';
+    return;
+  }
+  let W=0,H=0,DPR=Math.max(1, Math.min(2, window.devicePixelRatio||1));
+  function resize(){
+    W=canvas.clientWidth; H=canvas.clientHeight;
+    if(W===0||H===0){ const r=canvas.getBoundingClientRect(); W=r.width|0; H=r.height|0; }
+    canvas.width=(W*DPR)|0; canvas.height=(H*DPR)|0; ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const ui = {
+    n: id('n'), size: id('size'), gap: id('gap'), fov: id('fov'), lw: id('lw'), speed: id('speed'),
+    fade: id('fade'), diag: id('diag'), modeCube: id('modeCube'), modeAxis: id('modeAxis'),
+    autoSize: id('autoSize'), sizeAmp: id('sizeAmp'), autoGap: id('autoGap'), gapAmp: id('gapAmp'), breath: id('breath'),
+    // colors & faces
+    bgColor: id('bgColor'), lineColor: id('lineColor'), faceOn: id('faceOn'), faceColor: id('faceColor'), faceAlpha: id('faceAlpha'),
+    // snakes
+    snakeOn: id('snakeOn'), snakeSpeed: id('snakeSpeed'), snakeLen: id('snakeLen'), snakeThick: id('snakeThick'), turnBias: id('turnBias'), snakeColor: id('snakeColor'), snakeWrap: id('snakeWrap'), snakeFade: id('snakeFade'), tronCollide: id('tronCollide'),
+    // avoidance
+    avoidStrength: id('avoidStrength'), avoidSelf: id('avoidSelf'),
+    // misc
+    resetSnake: id('resetSnake'), addSnake: id('addSnake'), toggle: id('toggle')
+  };
+  function id(s){ return document.getElementById(s); }
+
+  const state = { t:0, anim:true, yaw:0.7, pitch:0.4, roll:0.0, dist:18, drag:false, lx:0, ly:0 };
+
+  // Interaction
+  canvas.addEventListener('mousedown', e=>{ state.drag=true; state.lx=e.clientX; state.ly=e.clientY; });
+  window.addEventListener('mouseup', ()=> state.drag=false);
+  window.addEventListener('mousemove', e=>{
+    if(!state.drag) return; const dx=e.clientX-state.lx, dy=e.clientY-state.ly; state.lx=e.clientX; state.ly=e.clientY;
+    state.yaw += dx*0.005; state.pitch += dy*0.005; state.pitch=Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, state.pitch));
+  });
+  canvas.addEventListener('wheel', e=>{ state.dist = Math.max(6, Math.min(60, state.dist * (e.deltaY>0?1.08:0.92))); e.preventDefault(); }, {passive:false});
+  window.addEventListener('keydown', e=>{ if(e.code==='Space'){ state.anim=!state.anim; ui.toggle.textContent = state.anim? '⏸︎ Pause':'▶︎ Play'; }});
+  ui.toggle.addEventListener('click', ()=>{ state.anim=!state.anim; ui.toggle.textContent = state.anim? '⏸︎ Pause':'▶︎ Play'; });
+
+  // Drawer toggle
+  const drawerToggle = id('drawerToggle');
+  const headerEl = document.querySelector('header');
+  drawerToggle.addEventListener('click', ()=>{
+    headerEl.classList.toggle('collapsed');
+    drawerToggle.textContent = headerEl.classList.contains('collapsed') ? 'Controls ▸' : 'Controls ▾';
+  });
+
+  // ==== Multi-snake support ====
+  const snakes = [];
+
+  function hexToRgb(hex){
+    const m = /^#?([0-9a-fA-F]{6})$/.exec(hex); if(!m) return null;
+    return { r:parseInt(m[1].slice(0,2),16), g:parseInt(m[1].slice(2,4),16), b:parseInt(m[1].slice(4,6),16) };
+  }
+
+  function createSnake(colorHex){
+    const N = (+ui.n.value|0); const m = Math.floor(N/2);
+    return {
+      list: [{ix:m,iy:m,iz:m}],
+      dir: [1,0,0],
+      acc: 0,
+      straightRun: 0,
+      color: hexToRgb(colorHex || ui.snakeColor.value) || {r:122,g:162,b:255}
+    };
+  }
+
+  function resetSnake(){
+    snakes.length = 0;
+    snakes.push(createSnake(ui.snakeColor.value));
+  }
+  ui.resetSnake.addEventListener('click', resetSnake);
+  ui.n.addEventListener('input', resetSnake);
+  ui.addSnake.addEventListener('click', ()=>{ snakes.push(createSnake(ui.snakeColor.value)); });
+
+  resetSnake();
+
+  // Build edges for a given cube size a and gap g
+  function buildEdges(a, g){
+    const edges = [];
+    const N = +ui.n.value | 0; const step = a + g; const half = (N-1)*step*0.5;
+    const s=a*0.5;
+    const corners = [
+      [-s,-s,-s],[ s,-s,-s],[ s, s,-s],[-s, s,-s],
+      [-s,-s, s],[ s,-s, s],[ s, s, s],[-s, s, s]
+    ];
+    const edgeIdx = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+    const faces = [ [0,1,2,3], [4,5,6,7], [0,1,5,4], [2,3,7,6], [1,2,6,5], [0,3,7,4] ];
+
+    if(ui.modeCube.checked){
+      for(let ix=0; ix<N; ix++) for(let iy=0; iy<N; iy++) for(let iz=0; iz<N; iz++){
+        const ox = ix*step - half; const oy = iy*step - half; const oz = iz*step - half;
+        for(const [i1,i2] of edgeIdx){
+          const p1=corners[i1], p2=corners[i2];
+          edges.push([p1[0]+ox, p1[1]+oy, p1[2]+oz, p2[0]+ox, p2[1]+oy, p2[2]+oz]);
+        }
+        if(ui.diag.checked){
+          for(const f of faces){
+            const [a0,a1,a2,a3]=f.map(i=>corners[i]);
+            edges.push([a0[0]+ox,a0[1]+oy,a0[2]+oz, a2[0]+ox,a2[1]+oy,a2[2]+oz]);
+            edges.push([a1[0]+ox,a1[1]+oy,a1[2]+oz, a3[0]+ox,a3[1]+oy,a3[2]+oz]);
+          }
+        }
+      }
+    }
+
+    if(ui.modeAxis.checked){
+      for(let y=0;y<N;y++) for(let z=0;z<N;z++){
+        for(let x=0;x<N-1;x++){
+          const x1=x*step-half, x2=(x+1)*step-half, yv=y*step-half, zv=z*step-half;
+          edges.push([x1,yv,zv, x2,yv,zv]);
+        }
+      }
+      for(let x=0;x<N;x++) for(let z=0;z<N;z++){
+        for(let y=0;y<N-1;y++){
+          const y1=y*step-half, y2=(y+1)*step-half, xv=x*step-half, zv=z*step-half;
+          edges.push([xv,y1,zv, xv,y2,zv]);
+        }
+      }
+      for(let x=0;x<N;x++) for(let y=0;y<N;y++){
+        for(let z=0;z<N-1;z++){
+          const z1=z*step-half, z2=(z+1)*step-half, xv=x*step-half, yv=y*step-half;
+          edges.push([xv,yv,z1, xv,yv,z2]);
+        }
+      }
+    }
+    return edges;
+  }
+
+  // Build face quads (world coords) for solid drawing
+  function buildFaces(a,g){
+    const quads = [];
+    const N = +ui.n.value | 0; const step = a + g; const half = (N-1)*step*0.5;
+    const s=a*0.5;
+    const corners = [
+      [-s,-s,-s],[ s,-s,-s],[ s, s,-s],[-s, s,-s],
+      [-s,-s, s],[ s,-s, s],[ s, s, s],[-s, s, s]
+    ];
+    const faces = [ [0,1,2,3], [4,5,6,7], [0,1,5,4], [2,3,7,6], [1,2,6,5], [0,3,7,4] ];
+    for(let ix=0; ix<N; ix++) for(let iy=0; iy<N; iy++) for(let iz=0; iz<N; iz++){
+      const ox = ix*step - half; const oy = iy*step - half; const oz = iz*step - half;
+      for(const f of faces){
+        const quad = f.map(i=>[corners[i][0]+ox, corners[i][1]+oy, corners[i][2]+oz]);
+        quads.push(quad);
+      }
+    }
+    return quads;
+  }
+
+  function project([x,y,z], f, w, h){
+    const px = f * x / z, py = f * y / z;
+    return [ w*0.5 + px, h*0.5 + py ];
+  }
+
+  function rotateFactory(yaw,pitch,roll){
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const cr = Math.cos(roll), sr = Math.sin(roll);
+    return function rotate(x,y,z){
+      let xx =  x*cy + z*sy; let zz = -x*sy + z*cy; let yy = y;
+      let y2 = yy*cp - zz*sp; let z2 = yy*sp + zz*cp; let x2 = xx;
+      let x3 = x2*cr - y2*sr; let y3 = x2*sr + y2*cr; let z3 = z2;
+      return [x3, y3, z3];
+    }
+  }
+
+  // ===== Helpers =====
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function lerp3(A,B,t){ return [ lerp(A[0],B[0],t), lerp(A[1],B[1],t), lerp(A[2],B[2],t) ]; }
+
+  // ===== Collision helpers (Tron mode & avoidance) =====
+  function occupied(ix,iy,iz, except){
+    for(const s of snakes){ if(s===except) continue; for(const n of s.list){ if(n.ix===ix && n.iy===iy && n.iz===iz) return true; } }
+    return false;
+  }
+  function selfOccupied(ix,iy,iz, snake){
+    for(const n of snake.list){ if(n.ix===ix && n.iy===iy && n.iz===iz) return true; }
+    return false;
+  }
+  function randomDir(){ const d=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]; return d[(Math.random()*6)|0]; }
+  function findEmptyCell(except){
+    const N = (+ui.n.value|0);
+    for(let tries=0; tries<1000; tries++){
+      const ix=(Math.random()*N)|0, iy=(Math.random()*N)|0, iz=(Math.random()*N)|0;
+      if(!occupied(ix,iy,iz, except) && !selfOccupied(ix,iy,iz, except)) return {ix,iy,iz};
+    }
+    // fallback: just pick center
+    const m=Math.floor(N/2); return {ix:m,iy:m,iz:m};
+  }
+  function respawnSnake(snake){
+    const cell = findEmptyCell(snake);
+    snake.list = [cell];
+    snake.dir = randomDir();
+    snake.acc = 0;
+    snake.straightRun = 0;
+  }
+  function handleCollision(snake){
+    if(!ui.tronCollide.checked) return;
+    const head = snake.list[snake.list.length-1];
+    if(occupied(head.ix, head.iy, head.iz, snake)){
+      respawnSnake(snake);
+    }
+  }
+
+  function render(dt){
+    if(state.anim) state.t += dt * (+ui.speed.value);
+
+    // Breathing parameters for cube size and gap
+    const a0 = +ui.size.value; const g0 = +ui.gap.value;
+    const speed = +ui.breath.value;
+    const sAmp = ui.autoSize.checked ? +ui.sizeAmp.value : 0;
+    const gAmp = ui.autoGap.checked ? +ui.gapAmp.value : 0;
+    const phase = state.t * speed;
+    const a = Math.max(0.2, a0 * (1 + sAmp * Math.sin(phase)));
+    const g = Math.max(0, g0 + gAmp * Math.sin(phase*1.03));
+
+    const bg = ui.bgColor.value || '#0b0d10';
+
+    // Build edges/faces with current a,g
+    const edges = buildEdges(a, g);
+    const drawFaces = ui.faceOn.checked ? buildFaces(a,g) : null;
+
+    const fov = +ui.fov.value * Math.PI/180; const f = (H*0.9)/(2*Math.tan(fov/2));
+    const dist = state.dist;
+    const yaw = state.yaw + state.t*0.15;
+    const pitch = state.pitch + state.t*0.05;
+    const roll = state.roll;
+    const rotate = rotateFactory(yaw,pitch,roll);
+
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+    ctx.lineJoin='round'; ctx.lineCap='round';
+
+    const fade = ui.fade.checked;
+
+    // === Faces (painter's algorithm) ===
+    if(drawFaces){
+      const fc = hexToRgb(ui.faceColor.value) || {r:31,g:111,b:235};
+      const baseAlpha = +ui.faceAlpha.value;
+      const facesToDraw = [];
+      for(const quad of drawFaces){
+        const v = quad.map(([x,y,z])=>{ const r=rotate(x,y,z); return [r[0],r[1],r[2]+dist]; });
+        if(v.some(p=>p[2]<=1)) continue; // behind camera
+        const zavg = (v[0][2]+v[1][2]+v[2][2]+v[3][2]) * 0.25;
+        const p = v.map(([x,y,z])=> project([x,y,z], f, W, H));
+        facesToDraw.push({p,z:zavg});
+      }
+      facesToDraw.sort((a,b)=> b.z - a.z);
+      for(const q of facesToDraw){
+        let alpha = baseAlpha;
+        if(fade){ alpha = Math.max(0.05, Math.min(1.0, baseAlpha * (1 - (q.z / (state.dist*2.2))))); }
+        ctx.fillStyle = `rgba(${fc.r},${fc.g},${fc.b},${alpha.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(q.p[0][0], q.p[0][1]);
+        for(let i=1;i<4;i++) ctx.lineTo(q.p[i][0], q.p[i][1]);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // === Lattice edges ===
+    ctx.lineWidth = +ui.lw.value;
+    const lc = hexToRgb(ui.lineColor.value) || {r:230,g:231,b:234};
+    const draws = [];
+    for(const e of edges){
+      let [x1,y1,z1] = rotate(e[0],e[1],e[2]);
+      let [x2,y2,z2] = rotate(e[3],e[4],e[5]);
+      z1 += dist; z2 += dist;
+      if(z1<=1 || z2<=1) continue;
+      const p1 = project([x1,y1,z1], f, W, H);
+      const p2 = project([x2,y2,z2], f, W, H);
+      const zavg = (z1+z2)*0.5;
+      draws.push({p1,p2,z:zavg});
+    }
+
+    draws.sort((a,b)=> b.z - a.z);
+    for(const d of draws){
+      let alp = 0.9;
+      if(fade){ alp = Math.max(0.08, Math.min(1.0, 1 - (d.z / (state.dist*2.2)) )); }
+      ctx.strokeStyle = `rgba(${lc.r},${lc.g},${lc.b},${alp.toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(d.p1[0], d.p1[1]); ctx.lineTo(d.p2[0], d.p2[1]); ctx.stroke();
+    }
+
+    // === Snakes update ===
+    if(ui.snakeOn.checked){
+      const stepsPerSec = +ui.snakeSpeed.value;
+      if(stepsPerSec > 0){
+        for(const s of snakes){
+          s.acc += dt * stepsPerSec;
+          while(s.acc >= 1){ stepSnake(s); s.acc -= 1; }
+        }
+      }
+    }
+
+    // === Pipes with smooth head & tail ===
+    if(ui.snakeOn.checked){
+      const N = (+ui.n.value|0);
+      const stepLen = a + g;
+      const half = (N-1)*stepLen*0.5;
+      const thick = +ui.snakeThick.value;
+      ctx.lineWidth = thick;
+
+      function cellWorld(ix,iy,iz){
+        return [ix*stepLen - half, iy*stepLen - half, iz*stepLen - half];
+      }
+
+      const segs = [];
+      for(const s of snakes){
+        const L = s.list.length;
+        if(L < 2) continue;
+        const tHead = Math.max(0, Math.min(1, s.acc || 0));
+
+        // total visible path length from first node to current head point
+        const total = (L-1) + tHead;
+        const maxLen = (+ui.snakeLen.value|0);
+        let trim = Math.max(0, total - maxLen); // how much to shave off the tail (in segment units)
+
+        // find tail position (segment index + fractional t)
+        let tailIdx = 0, tailT = 0;
+        while(trim > 0 && tailIdx < L-1){
+          if(trim >= 1){ trim -= 1; tailIdx++;
+          } else { tailT = trim; trim = 0; }
+        }
+
+        const Aend = s.list[L-2], Bend = s.list[L-1];
+        const Aw = cellWorld(Aend.ix,Aend.iy,Aend.iz);
+        const Bw = cellWorld(Bend.ix,Bend.iy,Bend.iz);
+        const P = lerp3(Aw, Bw, tHead); // head point
+
+        // build 3D segments from tail position to head point
+        function pushSeg(W1, W2){
+          let [x1,y1,z1] = rotate(W1[0],W1[1],W1[2]); z1 += dist; if(z1<=1) return;
+          let [x2,y2,z2] = rotate(W2[0],W2[1],W2[2]); z2 += dist; if(z2<=1) return;
+          const p1 = project([x1,y1,z1], f, W, H);
+          const p2 = project([x2,y2,z2], f, W, H);
+          segs.push({p1,p2,z:(z1+z2)*0.5,color:s.color});
+        }
+
+        if(tailIdx >= L-1){
+          // Tail lies within the last segment; draw only partial from that tail point to head P
+          const C0 = cellWorld(s.list[L-2].ix, s.list[L-2].iy, s.list[L-2].iz);
+          const C1 = cellWorld(s.list[L-1].ix, s.list[L-1].iy, s.list[L-1].iz);
+          const TailPt = lerp3(C0, C1, tailT);
+          pushSeg(TailPt, P);
+        } else {
+          // First partial segment from tail point to next node
+          const Ctail0 = cellWorld(s.list[tailIdx].ix, s.list[tailIdx].iy, s.list[tailIdx].iz);
+          const Ctail1 = cellWorld(s.list[tailIdx+1].ix, s.list[tailIdx+1].iy, s.list[tailIdx+1].iz);
+          const TailStart = lerp3(Ctail0, Ctail1, tailT);
+          pushSeg(TailStart, Ctail1);
+
+          // Full segments up to the last full segment
+          for(let i=tailIdx+1;i<L-2;i++){
+            const C0 = cellWorld(s.list[i].ix, s.list[i].iy, s.list[i].iz);
+            const C1 = cellWorld(s.list[i+1].ix, s.list[i+1].iy, s.list[i+1].iz);
+            pushSeg(C0, C1);
+          }
+
+          // Last partial to the head point
+          const Clast0 = cellWorld(s.list[L-2].ix, s.list[L-2].iy, s.list[L-2].iz);
+          pushSeg(Clast0, P);
+        }
+      }
+
+      // depth sort and draw (each segment carries its own color)
+      segs.sort((a,b)=> b.z - a.z);
+      for(const seg of segs){
+        let alpha = 1;
+        if(ui.snakeFade.checked){ alpha = Math.max(0.12, Math.min(1.0, 1 - (seg.z / (state.dist*2.2)))); }
+        const c = seg.color || {r:122,g:162,b:255};
+        ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${alpha.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(seg.p1[0], seg.p1[1]);
+        ctx.lineTo(seg.p2[0], seg.p2[1]);
+        ctx.stroke();
+      }
+    }
+    // ================================================
+  }
+
+  function stepSnake(snake){
+    const N = (+ui.n.value|0);
+    const head = snake.list[snake.list.length-1];
+    const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+    const last = snake.dir; const back=[-last[0],-last[1],-last[2]];
+
+    // candidate directions (no immediate 180)
+    let candidates = dirs.filter(d=> !(d[0]===back[0] && d[1]===back[1] && d[2]===back[2]));
+    // drop out-of-bounds if no wrap
+    let opts = candidates.filter(d=>{
+      let ix=head.ix+d[0], iy=head.iy+d[1], iz=head.iz+d[2];
+      if(ui.snakeWrap.checked) return true;
+      return ix>=0 && ix<N && iy>=0 && iy<N && iz>=0 && iz<N;
+    });
+    if(opts.length===0) opts = dirs; // allow backtrack if stuck
+
+    // === Collision avoidance ===
+    const avoid = +ui.avoidStrength.value;
+    const avoidSelfFlag = ui.avoidSelf.checked;
+    function nextCell(h, d){
+      let nx=h.ix+d[0], ny=h.iy+d[1], nz=h.iz+d[2];
+      if(ui.snakeWrap.checked){ nx=(nx+N)%N; ny=(ny+N)%N; nz=(nz+N)%N; }
+      return {ix:nx,iy:ny,iz:nz};
+    }
+    let safeOpts = [];
+    if(avoid > 0){
+      for(const d of opts){
+        const n = nextCell(head,d);
+        const hitOthers = occupied(n.ix,n.iy,n.iz, snake);
+        const hitSelf = avoidSelfFlag && selfOccupied(n.ix,n.iy,n.iz, snake);
+        if(!(hitOthers || hitSelf)) safeOpts.push(d);
+      }
+    }
+    let pool = (avoid>0 && safeOpts.length) ? safeOpts : opts;
+
+    // Weighted pick: discourage straightaways; pool may be safe-filtered
+    const bias = +ui.turnBias.value;
+    function pickWeighted(options){
+      if(options.length===1) return options[0];
+      const wts = options.map(d=>{
+        const same = (d[0]===last[0] && d[1]===last[1] && d[2]===last[2]);
+        const run = snake.straightRun || 0;
+        const straightPenalty = Math.exp(-bias * run);
+        return same ? Math.max(0.0001, straightPenalty) : 1;
+      });
+      let sum = 0; for(const w of wts) sum += w;
+      let r = Math.random()*sum;
+      for(let i=0;i<options.length;i++){ r -= wts[i]; if(r<=0) return options[i]; }
+      return options[options.length-1];
+    }
+    const d = pickWeighted(pool);
+    snake.dir = d;
+    snake.straightRun = (d[0]===last[0] && d[1]===last[1] && d[2]===last[2]) ? ((snake.straightRun||0)+1) : 1;
+
+    // step
+    let nx=head.ix+d[0], ny=head.iy+d[1], nz=head.iz+d[2];
+    if(ui.snakeWrap.checked){ nx=(nx+N)%N; ny=(ny+N)%N; nz=(nz+N)%N; }
+    else {
+      if(nx<0||nx>=N) { nx = Math.max(0, Math.min(N-1, nx)); snake.dir[0]*=-1; }
+      if(ny<0||ny>=N) { ny = Math.max(0, Math.min(N-1, ny)); snake.dir[1]*=-1; }
+      if(nz<0||nz>=N) { nz = Math.max(0, Math.min(N-1, nz)); snake.dir[2]*=-1; }
+    }
+    snake.list.push({ix:nx,iy:ny,iz:nz});
+
+    // Tron-style collision: if new head hits any existing segment/head, respawn this (the newcomer)
+    handleCollision(snake);
+
+    // Keep some history beyond the visible length so the tail can retract smoothly without pops
+    const keep = (+ui.snakeLen.value|0) + 200; // safety margin
+    while(snake.list.length>keep) snake.list.shift();
+  }
+
+  // ===== Diagnostics & self-tests =====
+  const debugBox = document.getElementById('debugBox');
+  function showError(msg){ debugBox.style.display='block'; debugBox.classList.remove('ok'); debugBox.textContent = msg; }
+  window.addEventListener('error', (e)=>{ showError(`Error: ${e.message || 'Unknown'}${e.lineno? ' @'+e.lineno:''}`); });
+  window.addEventListener('unhandledrejection', (e)=>{ showError('Unhandled promise rejection: '+(e.reason && e.reason.message || e.reason)); });
+
+  function runSelfTests(){
+    const requiredIds = ['n','size','gap','fov','lw','speed','fade','modeCube','modeAxis','diag','autoSize','sizeAmp','autoGap','gapAmp','breath','bgColor','lineColor','faceOn','faceColor','faceAlpha','snakeOn','snakeSpeed','snakeLen','snakeThick','turnBias','snakeColor','snakeWrap','snakeFade','tronCollide','avoidStrength','avoidSelf','resetSnake','addSnake','toggle','drawerToggle','c','debugBox'];
+    const fails = [];
+    for(const k of requiredIds){ if(!document.getElementById(k)) fails.push(`#${k}`); }
+
+    // Unique ID check
+    const ids = Array.from(document.querySelectorAll('[id]')).map(el=>el.id);
+    const dupes = ids.filter((id,idx)=> ids.indexOf(id)!==idx);
+    if(dupes.length) fails.push('duplicate ids: '+Array.from(new Set(dupes)).join(', '));
+
+    if(fails.length){ showError('Self-test FAILED: '+fails.join(' | ')); return; }
+
+    // Geometry test: face builder count = N^3 * 6
+    const N = +ui.n.value|0; const a=+ui.size.value; const g=+ui.gap.value;
+    const facesCount = buildFaces(a,g).length;
+    if(facesCount !== N*N*N*6){ showError('Self-test FAILED: faces count mismatch'); return; }
+
+    // Color independence test for added snakes
+    try{
+      snakes.length=0;
+      ui.snakeColor.value = '#ff0000'; snakes.push(createSnake('#ff0000'));
+      const firstColor = JSON.stringify(snakes[0].color);
+      ui.snakeColor.value = '#00ff00'; snakes.push(createSnake('#00ff00'));
+      const secondColor = JSON.stringify(snakes[1].color);
+      const stillFirst = JSON.stringify(snakes[0].color);
+      if(!(firstColor === stillFirst && firstColor !== secondColor)) { showError('Self-test FAILED: snake color independence'); return; }
+    } catch(err){ showError('Self-test FAILED: color independence '+err.message); return; }
+
+    // Tron collision test: overlapping heads should respawn 2nd snake
+    try{
+      snakes.length=0;
+      ui.tronCollide.checked = true;
+      const s1 = createSnake('#ff0000'); const s2 = createSnake('#00ff00');
+      const m = Math.floor((+ui.n.value|0)/2);
+      s1.list = [{ix:m,iy:m,iz:m}]; s2.list = [{ix:m,iy:m,iz:m}];
+      snakes.push(s1); snakes.push(s2);
+      handleCollision(s2);
+      const same = (s2.list[0].ix===m && s2.list[0].iy===m && s2.list[0].iz===m);
+      if(same) { showError('Self-test FAILED: tron respawn did not move snake'); return; }
+    } catch(err){ showError('Self-test FAILED: tron collision '+err.message); return; }
+
+    // Avoidance test: when a neighbor cell is occupied, with avoid>0 we should not step into it
+    try{
+      snakes.length=0;
+      ui.avoidStrength.value = '3.0'; ui.avoidSelf.checked = true; ui.snakeWrap.checked = true;
+      const sA = createSnake('#1122ff'); const sB = createSnake('#ff2211');
+      const m = Math.floor((+ui.n.value|0)/2);
+      // occupy (m+1,m,m) with A
+      sA.list = [{ix:m+1,iy:m,iz:m}];
+      sB.list = [{ix:m,iy:m,iz:m}]; sB.dir = [1,0,0]; sB.straightRun = 10; // encourage straight, but avoidance should override via safe pool
+      snakes.push(sA); snakes.push(sB);
+      stepSnake(sB);
+      const h = sB.list[sB.list.length-1];
+      if(h.ix===m+1 && h.iy===m && h.iz===m){ showError('Self-test FAILED: avoidance chose a colliding cell'); return; }
+    } catch(err){ showError('Self-test FAILED: avoidance logic '+err.message); return; }
+
+    debugBox.textContent = 'Self-test PASSED'; debugBox.classList.add('ok'); debugBox.style.display='block';
+  }
+
+  // main loop (safe render wrapper)
+  let last = performance.now();
+  function loop(t){
+    const dt = Math.min(0.033, (t-last)/1000); last = t; try { render(dt); } catch(err){ showError('Render crash: '+err.message); state.anim=false; } requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // kick self-tests once UI is ready
+  setTimeout(runSelfTests, 0);
+})();
+</script>
+</body>
+</html>
